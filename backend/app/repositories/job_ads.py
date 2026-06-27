@@ -27,6 +27,11 @@ def update_job_ad(db: Session, job_ad: JobAd) -> JobAd:
     return job_ad
 
 
+def delete_job_ad(db: Session, job_ad: JobAd) -> None:
+    db.delete(job_ad)
+    db.commit()
+
+
 def list_matchable_job_ads(db: Session) -> list[JobAd]:
     return list(
         db.scalars(

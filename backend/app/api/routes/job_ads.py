@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -31,3 +31,9 @@ def update_job_ad(
     db: Session = Depends(get_db),
 ) -> JobAd:
     return job_ad_service.update_job_ad(db, job_ad_id, payload)
+
+
+@router.delete("/{job_ad_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_job_ad(job_ad_id: int, db: Session = Depends(get_db)) -> Response:
+    job_ad_service.delete_job_ad(db, job_ad_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

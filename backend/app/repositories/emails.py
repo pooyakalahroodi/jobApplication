@@ -27,6 +27,11 @@ def update_email(db: Session, email: Email) -> Email:
     return email
 
 
+def delete_email(db: Session, email: Email) -> None:
+    db.delete(email)
+    db.commit()
+
+
 def list_unmatched_actionable_emails(db: Session) -> list[Email]:
     return list(
         db.scalars(

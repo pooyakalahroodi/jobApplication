@@ -74,3 +74,104 @@ def test_confirm_manual_match(client) -> None:
     assert updated_application.json()["status"] == "accepted"
     assert updated_application.json()["company"] == "Academic Work"
 
+
+def test_application_detail_includes_job_and_events(client) -> None:
+    job = client.post(
+        "/job-ads/capture",
+        json={"title": "Backend Engineer", "company": "Acme", "raw_text": "Backend at Acme"},
+    ).json()
+    email = client.post(
+        "/emails/import",
+        json={
+            "subject": "Thanks for applying to Backend Engineer at Acme",
+            "body": "We received your application for Backend Engineer at Acme.",
+        },
+    ).json()
+    application = client.post(
+        "/matching/confirm",
+        json={"job_ad_id": job["id"], "email_id": email["id"]},
+    ).json()
+
+    response = client.get(f"/applications/{application['id']}/detail")
+
+    assert response.status_code == 200
+    detail = response.json()
+    assert detail["id"] == application["id"]
+    assert detail["job_ad"]["id"] == job["id"]
+    assert detail["events"][0]["email_id"] == email["id"]
+    assert detail["events"][0]["notes"] == "Manually confirmed match."
+
+
+def test_delete_email_unlinks_timeline_event(client) -> None:
+    job = client.post(
+        "/job-ads/capture",
+        json={"title": "Backend Engineer", "company": "Acme", "raw_text": "Backend at Acme"},
+    ).json()
+    email = client.post(
+        "/emails/import",
+        json={
+            "subject": "Thanks for applying to Backend Engineer at Acme",
+            "body": "We received your application for Backend Engineer at Acme.",
+        },
+    ).json()
+    application = client.post(
+        "/matching/confirm",
+        json={"job_ad_id": job["id"], "email_id": email["id"]},
+    ).json()
+
+    response = client.delete(f"/emails/{email['id']}")
+
+    assert response.status_code == 204
+    assert client.get("/emails").json() == []
+    detail = client.get(f"/applications/{application['id']}/detail").json()
+    assert detail["events"][0]["email_id"] is None
+
+
+def test_delete_job_detaches_application(client) -> None:
+    job = client.post(
+        "/job-ads/capture",
+        json={"title": "Backend Engineer", "company": "Acme", "raw_text": "Backend at Acme"},
+    ).json()
+    email = client.post(
+        "/emails/import",
+        json={
+            "subject": "Thanks for applying to Backend Engineer at Acme",
+            "body": "We received your application for Backend Engineer at Acme.",
+        },
+    ).json()
+    application = client.post(
+        "/matching/confirm",
+        json={"job_ad_id": job["id"], "email_id": email["id"]},
+    ).json()
+
+    response = client.delete(f"/job-ads/{job['id']}")
+
+    assert response.status_code == 204
+    assert client.get("/job-ads").json() == []
+    detail = client.get(f"/applications/{application['id']}/detail").json()
+    assert detail["job_ad_id"] is None
+    assert detail["job_ad"] is None
+
+
+def test_delete_application_removes_record(client) -> None:
+    job = client.post(
+        "/job-ads/capture",
+        json={"title": "Backend Engineer", "company": "Acme", "raw_text": "Backend at Acme"},
+    ).json()
+    email = client.post(
+        "/emails/import",
+        json={
+            "subject": "Thanks for applying to Backend Engineer at Acme",
+            "body": "We received your application for Backend Engineer at Acme.",
+        },
+    ).json()
+    application = client.post(
+        "/matching/confirm",
+        json={"job_ad_id": job["id"], "email_id": email["id"]},
+    ).json()
+
+    response = client.delete(f"/applications/{application['id']}")
+
+    assert response.status_code == 204
+    assert client.get("/applications").json() == []
+

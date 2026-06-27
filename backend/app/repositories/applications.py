@@ -27,3 +27,12 @@ def update_application(db: Session, application: Application) -> Application:
     db.commit()
     db.refresh(application)
     return application
+
+
+def list_applications_by_job_ad_id(db: Session, job_ad_id: int) -> list[Application]:
+    return list(db.scalars(select(Application).where(Application.job_ad_id == job_ad_id)).all())
+
+
+def delete_application(db: Session, application: Application) -> None:
+    db.delete(application)
+    db.commit()
