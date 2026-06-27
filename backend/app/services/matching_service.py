@@ -119,3 +119,37 @@ def run_matching(db: Session) -> MatchingRunResult:
         needs_review_count=needs_review_count,
         unmatched_count=unmatched_count,
     )
+
+
+def confirm_match(db: Session, job_ad_id: int, email_id: int) -> Application:
+    job_ad = job_ad_repository.get_job_ad(db, job_ad_id)
+    email = email_repository.get_email(db, email_id)
+    status = application_status_from_email(email.email_status)
+
+    application = application_repository.get_application_by_job_ad_id(db, job_ad.id)
+    if application is None:
+        application = Application(
+            job_ad_id=job_ad.id,
+            status=status,
+            company=job_ad.company or email.extracted_company,
+            role_title=job_ad.title or email.extracted_role_title,
+        )
+        application_repository.create_application(db, application)
+    else:
+        application.status = status
+
+    event_repository.create_application_event(
+        db,
+        ApplicationEvent(
+            application_id=application.id,
+            email_id=email.id,
+            event_type=email.email_status.value,
+            event_date=email.received_at,
+            notes="Manually confirmed match.",
+        ),
+    )
+    job_ad.status = job_status_from_email(email.email_status)
+    email.match_status = MatchStatus.SET
+    db.commit()
+    db.refresh(application)
+    return application

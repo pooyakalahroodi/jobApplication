@@ -20,3 +20,10 @@ def create_application(db: Session, application: Application) -> Application:
     db.add(application)
     db.flush()
     return application
+
+
+def update_application(db: Session, application: Application) -> Application:
+    db.add(application)
+    db.commit()
+    db.refresh(application)
+    return application

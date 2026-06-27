@@ -16,3 +16,8 @@ class ApplicationRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class ApplicationUpdate(BaseModel):
+    status: ApplicationStatus | None = None
+    company: str | None = None
+    role_title: str | None = None

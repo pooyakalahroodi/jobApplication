@@ -59,6 +59,10 @@ http://127.0.0.1:5173
 3. Run `POST /matching/run`.
 4. If the match is strong, the email is marked `set`, the job becomes `applied`, and an
    application record is created.
+5. If a match needs manual review, use the dashboard's **Confirm Match** panel to connect
+   a captured job and imported email.
+6. Use the status dropdowns in the dashboard to correct job, email, match, and application
+   statuses.
 
 Example email import payload:
 

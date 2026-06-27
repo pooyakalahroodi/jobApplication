@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.job_ad import JobAd
-from app.schemas.job_ad import JobAdCapture, JobAdRead
+from app.schemas.job_ad import JobAdCapture, JobAdRead, JobAdUpdate
 from app.services import job_ad_service
 
 router = APIRouter()
@@ -22,3 +22,12 @@ def list_job_ads(db: Session = Depends(get_db)) -> list[JobAd]:
 @router.get("/{job_ad_id}", response_model=JobAdRead)
 def get_job_ad(job_ad_id: int, db: Session = Depends(get_db)) -> JobAd:
     return job_ad_service.get_job_ad(db, job_ad_id)
+
+
+@router.patch("/{job_ad_id}", response_model=JobAdRead)
+def update_job_ad(
+    job_ad_id: int,
+    payload: JobAdUpdate,
+    db: Session = Depends(get_db),
+) -> JobAd:
+    return job_ad_service.update_job_ad(db, job_ad_id, payload)
