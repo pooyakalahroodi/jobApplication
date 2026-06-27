@@ -41,6 +41,12 @@ export function App() {
   const [manualEmailId, setManualEmailId] = useState<string>("");
   const [selectedExtractionRunId, setSelectedExtractionRunId] = useState<number | null>(null);
   const [selectedApplicationDetail, setSelectedApplicationDetail] = useState<ApplicationDetail | null>(null);
+  const [selectedJob, setSelectedJob] = useState<JobAd | null>(null);
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [jobStatusFilter, setJobStatusFilter] = useState<string>("all");
+  const [emailStatusFilter, setEmailStatusFilter] = useState<string>("all");
+  const [applicationStatusFilter, setApplicationStatusFilter] = useState<string>("all");
 
   async function refreshData() {
     setLoadState("loading");
@@ -244,6 +250,47 @@ export function App() {
     return extractionRuns.find((run) => run.id === selectedExtractionRunId) ?? null;
   }, [extractionRuns, selectedExtractionRunId]);
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const text = [job.title, job.company, job.location, job.description, job.url]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch = normalizedSearch === "" || text.includes(normalizedSearch);
+      const matchesStatus = jobStatusFilter === "all" || job.status === jobStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [jobStatusFilter, jobs, normalizedSearch]);
+
+  const filteredEmails = useMemo(() => {
+    return emails.filter((email) => {
+      const text = [
+        email.subject,
+        email.sender,
+        email.body,
+        email.extracted_company,
+        email.extracted_role_title
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch = normalizedSearch === "" || text.includes(normalizedSearch);
+      const matchesStatus = emailStatusFilter === "all" || email.email_status === emailStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [emailStatusFilter, emails, normalizedSearch]);
+
+  const filteredApplications = useMemo(() => {
+    return applications.filter((application) => {
+      const text = [application.role_title, application.company].filter(Boolean).join(" ").toLowerCase();
+      const matchesSearch = normalizedSearch === "" || text.includes(normalizedSearch);
+      const matchesStatus =
+        applicationStatusFilter === "all" || application.status === applicationStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [applicationStatusFilter, applications, normalizedSearch]);
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -280,6 +327,52 @@ export function App() {
         </section>
       ) : null}
 
+      <section className="filter-bar" aria-label="Dashboard filters">
+        <label className="search-field">
+          <span>Search</span>
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Role, company, email text..."
+          />
+        </label>
+        <label>
+          <span>Jobs</span>
+          <select value={jobStatusFilter} onChange={(event) => setJobStatusFilter(event.target.value)}>
+            <option value="all">All jobs</option>
+            <option value="not_applied">Not applied</option>
+            <option value="applied">Applied</option>
+            <option value="rejected">Rejected</option>
+            <option value="accepted">Accepted</option>
+            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <label>
+          <span>Emails</span>
+          <select value={emailStatusFilter} onChange={(event) => setEmailStatusFilter(event.target.value)}>
+            <option value="all">All emails</option>
+            <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
+            <option value="accepted">Accepted</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </label>
+        <label>
+          <span>Applications</span>
+          <select
+            value={applicationStatusFilter}
+            onChange={(event) => setApplicationStatusFilter(event.target.value)}
+          >
+            <option value="all">All applications</option>
+            <option value="applied">Applied</option>
+            <option value="pending">Pending</option>
+            <option value="rejected">Rejected</option>
+            <option value="accepted">Accepted</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </label>
+      </section>
+
       <section className="review-panel" aria-label="Manual match review">
         <div>
           <h2>Confirm Match</h2>
@@ -311,28 +404,30 @@ export function App() {
       <section className="layout">
         <Panel title="Captured Jobs">
           <JobTable
-            jobs={jobs}
+            jobs={filteredJobs}
             extractionRuns={latestExtractionBySource}
             onStatusChange={handleJobStatusChange}
             onExtract={handleExtractJob}
             onViewExtraction={setSelectedExtractionRunId}
+            onView={setSelectedJob}
             onDelete={handleDeleteJob}
           />
         </Panel>
         <Panel title="Emails">
           <EmailTable
-            emails={emails}
+            emails={filteredEmails}
             extractionRuns={latestExtractionBySource}
             onEmailStatusChange={handleEmailStatusChange}
             onMatchStatusChange={handleMatchStatusChange}
             onExtract={handleExtractEmail}
             onViewExtraction={setSelectedExtractionRunId}
+            onView={setSelectedEmail}
             onDelete={handleDeleteEmail}
           />
         </Panel>
         <Panel title="Applications">
           <ApplicationTable
-            applications={applications}
+            applications={filteredApplications}
             onStatusChange={handleApplicationStatusChange}
             onView={handleViewApplication}
             onDelete={handleDeleteApplication}
@@ -340,6 +435,8 @@ export function App() {
         </Panel>
       </section>
 
+      <JobDetailsPanel job={selectedJob} onClose={() => setSelectedJob(null)} />
+      <EmailDetailsPanel email={selectedEmail} onClose={() => setSelectedEmail(null)} />
       <ApplicationDetailsPanel
         detail={selectedApplicationDetail}
         onClose={() => setSelectedApplicationDetail(null)}
@@ -376,6 +473,7 @@ function JobTable({
   onStatusChange,
   onExtract,
   onViewExtraction,
+  onView,
   onDelete
 }: {
   jobs: JobAd[];
@@ -383,6 +481,7 @@ function JobTable({
   onStatusChange: (jobId: number, status: JobAdStatus) => void;
   onExtract: (jobId: number) => void;
   onViewExtraction: (runId: number) => void;
+  onView: (job: JobAd) => void;
   onDelete: (jobId: number) => void;
 }) {
   if (jobs.length === 0) {
@@ -390,22 +489,12 @@ function JobTable({
   }
 
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Role</th>
-            <th>Company</th>
-            <th>Location</th>
-            <th>Status</th>
-            <th>LLM</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jobs.map((job) => (
-            <tr key={job.id}>
-              <td>
+    <div className="record-list">
+      {jobs.map((job) => (
+        <article className="record-card" key={job.id}>
+          <div className="record-main">
+            <div>
+              <h3>
                 {job.url ? (
                   <a href={job.url} target="_blank" rel="noreferrer">
                     {job.title}
@@ -413,32 +502,36 @@ function JobTable({
                 ) : (
                   job.title
                 )}
-              </td>
-              <td>{job.company ?? "-"}</td>
-              <td>{job.location ?? "-"}</td>
-              <td>
-                <StatusSelect
-                  value={job.status}
-                  options={["not_applied", "applied", "rejected", "accepted", "archived"]}
-                  onChange={(value) => onStatusChange(job.id, value as JobAdStatus)}
-                />
-              </td>
-              <td>
-                <ExtractionAction
-                  run={extractionRuns.get(`job_ad:${job.id}`)}
-                  onExtract={() => onExtract(job.id)}
-                  onView={onViewExtraction}
-                />
-              </td>
-              <td>
-                <button type="button" className="danger-button" onClick={() => onDelete(job.id)}>
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </h3>
+              <p>
+                {job.company ?? "Unknown company"}
+                {job.location ? ` · ${job.location}` : ""}
+              </p>
+            </div>
+            <StatusSelect
+              value={job.status}
+              options={["not_applied", "applied", "rejected", "accepted", "archived"]}
+              onChange={(value) => onStatusChange(job.id, value as JobAdStatus)}
+            />
+          </div>
+          <p className="record-preview">{job.description ?? job.selected_text ?? job.raw_text ?? "No description captured."}</p>
+          <div className="record-footer">
+            <ExtractionAction
+              run={extractionRuns.get(`job_ad:${job.id}`)}
+              onExtract={() => onExtract(job.id)}
+              onView={onViewExtraction}
+            />
+            <div className="row-actions">
+              <button type="button" onClick={() => onView(job)}>
+                View
+              </button>
+              <button type="button" className="danger-button" onClick={() => onDelete(job.id)}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -450,6 +543,7 @@ function EmailTable({
   onMatchStatusChange,
   onExtract,
   onViewExtraction,
+  onView,
   onDelete
 }: {
   emails: Email[];
@@ -458,6 +552,7 @@ function EmailTable({
   onMatchStatusChange: (emailId: number, status: MatchStatus) => void;
   onExtract: (emailId: number) => void;
   onViewExtraction: (runId: number) => void;
+  onView: (email: Email) => void;
   onDelete: (emailId: number) => void;
 }) {
   if (emails.length === 0) {
@@ -465,56 +560,49 @@ function EmailTable({
   }
 
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Subject</th>
-            <th>Extracted</th>
-            <th>Email</th>
-            <th>Match</th>
-            <th>LLM</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {emails.map((email) => (
-            <tr key={email.id}>
-              <td>{email.subject}</td>
-              <td>
-                <div>{email.extracted_role_title ?? "-"}</div>
-                <small>{email.extracted_company ?? ""}</small>
-              </td>
-              <td>
-                <StatusSelect
-                  value={email.email_status}
-                  options={["pending", "rejected", "accepted", "unknown"]}
-                  onChange={(value) => onEmailStatusChange(email.id, value as EmailStatus)}
-                />
-              </td>
-              <td>
-                <StatusSelect
-                  value={email.match_status}
-                  options={["not_set", "set", "needs_review"]}
-                  onChange={(value) => onMatchStatusChange(email.id, value as MatchStatus)}
-                />
-              </td>
-              <td>
-                <ExtractionAction
-                  run={extractionRuns.get(`email:${email.id}`)}
-                  onExtract={() => onExtract(email.id)}
-                  onView={onViewExtraction}
-                />
-              </td>
-              <td>
-                <button type="button" className="danger-button" onClick={() => onDelete(email.id)}>
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="record-list">
+      {emails.map((email) => (
+        <article className="record-card" key={email.id}>
+          <div className="record-main">
+            <div>
+              <h3>{email.subject}</h3>
+              <p>
+                {email.sender ?? "Unknown sender"}
+                {email.extracted_role_title ? ` · ${email.extracted_role_title}` : ""}
+                {email.extracted_company ? ` · ${email.extracted_company}` : ""}
+              </p>
+            </div>
+            <div className="status-stack">
+              <StatusSelect
+                value={email.email_status}
+                options={["pending", "rejected", "accepted", "unknown"]}
+                onChange={(value) => onEmailStatusChange(email.id, value as EmailStatus)}
+              />
+              <StatusSelect
+                value={email.match_status}
+                options={["not_set", "set", "needs_review"]}
+                onChange={(value) => onMatchStatusChange(email.id, value as MatchStatus)}
+              />
+            </div>
+          </div>
+          <p className="record-preview">{email.body}</p>
+          <div className="record-footer">
+            <ExtractionAction
+              run={extractionRuns.get(`email:${email.id}`)}
+              onExtract={() => onExtract(email.id)}
+              onView={onViewExtraction}
+            />
+            <div className="row-actions">
+              <button type="button" onClick={() => onView(email)}>
+                View
+              </button>
+              <button type="button" className="danger-button" onClick={() => onDelete(email.id)}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -535,48 +623,39 @@ function ApplicationTable({
   }
 
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Role</th>
-            <th>Company</th>
-            <th>Status</th>
-            <th>Updated</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {applications.map((application) => (
-            <tr key={application.id}>
-              <td>{application.role_title ?? "-"}</td>
-              <td>{application.company ?? "-"}</td>
-              <td>
-                <StatusSelect
-                  value={application.status}
-                  options={["applied", "pending", "rejected", "accepted", "unknown"]}
-                  onChange={(value) => onStatusChange(application.id, value as ApplicationStatus)}
-                />
-              </td>
-              <td>{formatDate(application.updated_at)}</td>
-              <td>
-                <div className="row-actions">
-                  <button type="button" onClick={() => onView(application.id)}>
-                    View
-                  </button>
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => onDelete(application.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="record-list">
+      {applications.map((application) => (
+        <article className="record-card" key={application.id}>
+          <div className="record-main">
+            <div>
+              <h3>{application.role_title ?? "Untitled application"}</h3>
+              <p>
+                {application.company ?? "Unknown company"} · Updated {formatDate(application.updated_at)}
+              </p>
+            </div>
+            <StatusSelect
+              value={application.status}
+              options={["applied", "pending", "rejected", "accepted", "unknown"]}
+              onChange={(value) => onStatusChange(application.id, value as ApplicationStatus)}
+            />
+          </div>
+          <div className="record-footer">
+            <span className="record-meta">Created {formatDate(application.created_at)}</span>
+            <div className="row-actions">
+              <button type="button" onClick={() => onView(application.id)}>
+                View
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={() => onDelete(application.id)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -605,6 +684,105 @@ function StatusSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function JobDetailsPanel({ job, onClose }: { job: JobAd | null; onClose: () => void }) {
+  if (!job) {
+    return null;
+  }
+
+  return (
+    <section className="details-panel" aria-label="Captured job details">
+      <header>
+        <div>
+          <h2>Captured Job</h2>
+          <p>{job.company ?? "Unknown company"}</p>
+        </div>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+      </header>
+      <div className="details-grid">
+        <Detail label="Status" value={job.status} />
+        <Detail label="Company" value={job.company ?? "-"} />
+        <Detail label="Location" value={job.location ?? "-"} />
+        <Detail label="Captured" value={formatDate(job.captured_at ?? job.created_at)} />
+      </div>
+      <div className="detail-block">
+        <h3>Position</h3>
+        <p>
+          {job.url ? (
+            <a href={job.url} target="_blank" rel="noreferrer">
+              {job.title}
+            </a>
+          ) : (
+            job.title
+          )}
+        </p>
+      </div>
+      <div className="detail-block">
+        <h3>Extracted Description</h3>
+        <p>{job.description ?? job.selected_text ?? "No description saved yet."}</p>
+      </div>
+      {job.raw_text ? (
+        <div className="detail-block">
+          <h3>Captured Page Text</h3>
+          <pre>{job.raw_text}</pre>
+        </div>
+      ) : null}
+      {job.json_ld ? (
+        <div className="detail-block">
+          <h3>Structured Page Data</h3>
+          <pre>{JSON.stringify(job.json_ld, null, 2)}</pre>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function EmailDetailsPanel({ email, onClose }: { email: Email | null; onClose: () => void }) {
+  if (!email) {
+    return null;
+  }
+
+  return (
+    <section className="details-panel" aria-label="Email details">
+      <header>
+        <div>
+          <h2>Email Details</h2>
+          <p>{email.sender ?? "Unknown sender"}</p>
+        </div>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+      </header>
+      <div className="details-grid">
+        <Detail label="Email status" value={email.email_status} />
+        <Detail label="Match status" value={email.match_status} />
+        <Detail
+          label="Confidence"
+          value={
+            email.extraction_confidence !== null
+              ? `${Math.round(email.extraction_confidence * 100)}%`
+              : "-"
+          }
+        />
+        <Detail label="Received" value={email.received_at ? formatDate(email.received_at) : "-"} />
+      </div>
+      <div className="detail-block">
+        <h3>Subject</h3>
+        <p>{email.subject}</p>
+      </div>
+      <div className="details-grid">
+        <Detail label="Extracted company" value={email.extracted_company ?? "-"} />
+        <Detail label="Extracted role" value={email.extracted_role_title ?? "-"} />
+      </div>
+      <div className="detail-block">
+        <h3>Email Body</h3>
+        <pre>{email.body}</pre>
+      </div>
+    </section>
   );
 }
 
