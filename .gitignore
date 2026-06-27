@@ -19,3 +19,6 @@ build/
 node_modules/
 *.crx
 *.pem
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
