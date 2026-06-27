@@ -6,7 +6,10 @@ from app.schemas.job_ad import JobAdCapture
 
 
 def capture_job_ad(db: Session, payload: JobAdCapture) -> JobAd:
-    job_ad = JobAd(**payload.model_dump())
+    data = payload.model_dump()
+    if data["description"] is None:
+        data["description"] = data["selected_text"] or data["raw_text"]
+    job_ad = JobAd(**data)
     return job_ad_repository.create_job_ad(db, job_ad)
 
 
@@ -16,4 +19,3 @@ def list_job_ads(db: Session) -> list[JobAd]:
 
 def get_job_ad(db: Session, job_ad_id: int) -> JobAd:
     return job_ad_repository.get_job_ad(db, job_ad_id)
-
