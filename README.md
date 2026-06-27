@@ -55,6 +55,17 @@ Example email import payload:
 }
 ```
 
+German emails are supported for common application confirmations too:
+
+```json
+{
+  "subject": "Ihre Bewerbung als Softwareentwickler Java (m/w/d) - Remote",
+  "sender": "info@academicwork.de",
+  "body": "Vielen Dank für Ihre Bewerbung als Softwareentwickler Java (m/w/d) - Remote bei Academic Work Germany GmbH Hamburg. Wir haben Ihre Unterlagen erhalten und prüfen diese nun.",
+  "received_at": "2026-06-27T14:00:00Z"
+}
+```
+
 Matching returns:
 
 ```json
