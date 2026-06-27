@@ -12,6 +12,13 @@ class EmailImport(BaseModel):
     received_at: datetime | None = None
 
 
+class EmailUpdate(BaseModel):
+    email_status: EmailStatus | None = None
+    match_status: MatchStatus | None = None
+    extracted_company: str | None = None
+    extracted_role_title: str | None = None
+
+
 class EmailRead(BaseModel):
     id: int
     subject: str

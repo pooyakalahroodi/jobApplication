@@ -19,6 +19,14 @@ class JobAdCapture(BaseModel):
     captured_at: datetime | None = None
 
 
+class JobAdUpdate(BaseModel):
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+    description: str | None = None
+    status: JobAdStatus | None = None
+
+
 class JobAdRead(BaseModel):
     id: int
     url: str | None

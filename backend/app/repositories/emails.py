@@ -20,6 +20,13 @@ def get_email(db: Session, email_id: int) -> Email:
     return db.get_one(Email, email_id)
 
 
+def update_email(db: Session, email: Email) -> Email:
+    db.add(email)
+    db.commit()
+    db.refresh(email)
+    return email
+
+
 def list_unmatched_actionable_emails(db: Session) -> list[Email]:
     return list(
         db.scalars(
@@ -31,4 +38,3 @@ def list_unmatched_actionable_emails(db: Session) -> list[Email]:
             )
         ).all()
     )
-

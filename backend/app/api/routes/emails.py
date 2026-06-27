@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.email import Email
-from app.schemas.email import EmailImport, EmailRead
+from app.schemas.email import EmailImport, EmailRead, EmailUpdate
 from app.services import email_service
 
 router = APIRouter()
@@ -22,3 +22,12 @@ def list_emails(db: Session = Depends(get_db)) -> list[Email]:
 @router.get("/{email_id}", response_model=EmailRead)
 def get_email(email_id: int, db: Session = Depends(get_db)) -> Email:
     return email_service.get_email(db, email_id)
+
+
+@router.patch("/{email_id}", response_model=EmailRead)
+def update_email(
+    email_id: int,
+    payload: EmailUpdate,
+    db: Session = Depends(get_db),
+) -> Email:
+    return email_service.update_email(db, email_id, payload)

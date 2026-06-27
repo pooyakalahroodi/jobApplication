@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.models.job_ad import JobAd
 from app.repositories import job_ads as job_ad_repository
-from app.schemas.job_ad import JobAdCapture
+from app.schemas.job_ad import JobAdCapture, JobAdUpdate
 
 
 def capture_job_ad(db: Session, payload: JobAdCapture) -> JobAd:
@@ -19,3 +19,10 @@ def list_job_ads(db: Session) -> list[JobAd]:
 
 def get_job_ad(db: Session, job_ad_id: int) -> JobAd:
     return job_ad_repository.get_job_ad(db, job_ad_id)
+
+
+def update_job_ad(db: Session, job_ad_id: int, payload: JobAdUpdate) -> JobAd:
+    job_ad = job_ad_repository.get_job_ad(db, job_ad_id)
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(job_ad, field, value)
+    return job_ad_repository.update_job_ad(db, job_ad)

@@ -48,6 +48,11 @@ export type MatchingRunResult = {
   unmatched_count: number;
 };
 
+export type JobAdStatus = JobAd["status"];
+export type EmailStatus = Email["email_status"];
+export type MatchStatus = Email["match_status"];
+export type ApplicationStatus = Application["status"];
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   if (!response.ok) {
@@ -70,5 +75,43 @@ export function listApplications() {
 
 export function runMatching() {
   return request<MatchingRunResult>("/matching/run", { method: "POST" });
+}
+
+export function updateJobAd(id: number, payload: Partial<Pick<JobAd, "status" | "title" | "company" | "location" | "description">>) {
+  return request<JobAd>(`/job-ads/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateEmail(
+  id: number,
+  payload: Partial<Pick<Email, "email_status" | "match_status" | "extracted_company" | "extracted_role_title">>
+) {
+  return request<Email>(`/emails/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateApplication(
+  id: number,
+  payload: Partial<Pick<Application, "status" | "company" | "role_title">>
+) {
+  return request<Application>(`/applications/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+export function confirmMatch(jobAdId: number, emailId: number) {
+  return request<Application>("/matching/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_ad_id: jobAdId, email_id: emailId })
+  });
 }
 
