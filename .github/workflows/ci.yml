@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
@@ -22,6 +21,7 @@ jobs:
           pip install -e ".[dev]"
       - name: Lint
         run: ruff check .
+      - name: Run migrations
+        run: alembic upgrade head
       - name: Test
         run: pytest
-
