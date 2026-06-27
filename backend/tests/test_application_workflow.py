@@ -52,3 +52,40 @@ def test_manual_email_import_and_matching_flow(client) -> None:
     jobs_response = client.get("/job-ads")
     assert jobs_response.status_code == 200
     assert jobs_response.json()[0]["status"] == "applied"
+
+
+def test_german_email_import_and_matching_flow(client) -> None:
+    job_response = client.post(
+        "/job-ads/capture",
+        json={
+            "url": "https://www.stepstone.de/stellenangebote--Softwareentwickler-Java.html",
+            "title": "Softwareentwickler Java (m/w/d) - Remote",
+            "company": "Academic Work Germany GmbH Hamburg",
+            "location": "bundesweit, Home-Office",
+            "source": "browser_extension",
+            "raw_text": "Softwareentwickler Java (m/w/d) - Remote bei Academic Work Germany GmbH Hamburg.",
+        },
+    )
+    assert job_response.status_code == 200
+
+    email_response = client.post(
+        "/emails/import",
+        json={
+            "subject": "Ihre Bewerbung als Softwareentwickler Java (m/w/d) - Remote",
+            "sender": "info@academicwork.de",
+            "body": (
+                "Vielen Dank für Ihre Bewerbung als Softwareentwickler Java (m/w/d) - Remote "
+                "bei Academic Work Germany GmbH Hamburg. Wir haben Ihre Unterlagen erhalten "
+                "und prüfen diese nun."
+            ),
+        },
+    )
+    assert email_response.status_code == 200
+    assert email_response.json()["email_status"] == "pending"
+    assert email_response.json()["extracted_company"] == "Academic Work Germany GmbH Hamburg"
+    assert email_response.json()["extracted_role_title"] == "Softwareentwickler Java (m/w/d) - Remote"
+
+    matching_response = client.post("/matching/run")
+
+    assert matching_response.status_code == 200
+    assert matching_response.json()["matched_count"] == 1

@@ -15,8 +15,26 @@ class EmailExtraction:
 def infer_email_status(subject: str, body: str) -> EmailStatus:
     text = f"{subject}\n{body}".lower()
 
-    rejected_terms = ["unfortunately", "not moving forward", "decided not to proceed", "rejection"]
-    accepted_terms = ["offer", "congratulations", "pleased to offer"]
+    rejected_terms = [
+        "unfortunately",
+        "not moving forward",
+        "decided not to proceed",
+        "rejection",
+        "leider",
+        "absage",
+        "nicht berücksichtigen",
+        "nicht weiter berücksichtigen",
+        "nicht in die engere auswahl",
+    ]
+    accepted_terms = [
+        "offer",
+        "congratulations",
+        "pleased to offer",
+        "angebot",
+        "vertragsangebot",
+        "wir freuen uns, ihnen ein angebot",
+        "wir möchten ihnen ein angebot",
+    ]
     pending_terms = [
         "thanks for applying",
         "thank you for applying",
@@ -24,6 +42,19 @@ def infer_email_status(subject: str, body: str) -> EmailStatus:
         "interview",
         "next step",
         "assessment",
+        "vielen dank für ihre bewerbung",
+        "vielen dank fuer ihre bewerbung",
+        "bewerbung erhalten",
+        "unterlagen erhalten",
+        "eingang ihrer bewerbung",
+        "prüfen diese",
+        "pruefen diese",
+        "vorstellungsgespräch",
+        "vorstellungsgespraech",
+        "kennenlerngespräch",
+        "kennenlerngespraech",
+        "nächster schritt",
+        "naechster schritt",
     ]
 
     if any(term in text for term in rejected_terms):
@@ -63,15 +94,20 @@ def _extract_role_title(text: str) -> str | None:
         r"application (?:to|for)\s+(?P<role>.+?)\s+at\s+",
         r"received your application (?:to|for)\s+(?P<role>.+?)\s+(?:at|with)\s+",
         r"your application for\s+(?P<role>.+?)(?:\.|,|\n|$)",
+        r"bewerbung\s+(?:als|auf die stelle|für|fuer)\s+(?P<role>.+?)\s+(?:bei|an)\s+",
+        r"ihre bewerbung\s+(?:als|auf die stelle|für|fuer)\s+(?P<role>.+?)\s+(?:bei|an)\s+",
+        r"bewerbung\s+(?:als|auf die stelle|für|fuer)\s+(?P<role>.+?)(?:\.|,|\n|$)",
     ]
     return _first_group_match(patterns, text, "role")
 
 
 def _extract_company(text: str) -> str | None:
     patterns = [
-        r"\s+at\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80})(?:\.|,|\n|$)",
-        r"\s+with\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80})(?:\.|,|\n|$)",
-        r"from\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80})(?:\.|,|\n|$)",
+        r"\s+at\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80}?)(?=\.|,|\n|$)",
+        r"\s+with\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80}?)(?=\.|,|\n|$)",
+        r"from\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80}?)(?=\.|,|\n|$)",
+        r"\s+bei\s+(?P<company>[A-ZÄÖÜ][A-Za-zÄÖÜäöüß0-9&.,\- ]{1,100}?)(?=\.|,|\n|$)",
+        r"\s+von\s+(?P<company>[A-ZÄÖÜ][A-Za-zÄÖÜäöüß0-9&.,\- ]{1,100}?)(?=\.|,|\n|$)",
     ]
     return _first_group_match(patterns, text, "company")
 
