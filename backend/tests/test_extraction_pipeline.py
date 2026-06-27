@@ -112,3 +112,37 @@ def test_failed_ollama_extraction_records_failed_run(client: TestClient, monkeyp
     assert len(runs) == 1
     assert runs[0]["status"] == "failed"
     assert runs[0]["source_type"] == "email"
+
+
+def test_incomplete_llm_json_is_rejected_and_recorded(client: TestClient, monkeypatch) -> None:
+    job_response = client.post(
+        "/job-ads/capture",
+        json={
+            "url": "https://example.com/jobs/2",
+            "title": "Backend Engineer",
+            "raw_text": "Backend Engineer at Acme in Berlin.",
+        },
+    )
+    job_id = job_response.json()["id"]
+
+    def fake_ollama(_: str) -> str:
+        return """
+        {
+          "title": "Backend Engineer",
+          "company": "Acme",
+          "location": "Berlin",
+          "confidence": 0.8
+        }
+        """
+
+    monkeypatch.setattr("app.services.extraction_service.ask_ollama", fake_ollama)
+
+    response = client.post(f"/extraction/job-ads/{job_id}")
+
+    assert response.status_code == 503
+    assert "missing required fields" in response.json()["detail"]
+
+    runs = client.get("/extraction/runs").json()
+    assert len(runs) == 1
+    assert runs[0]["status"] == "failed"
+    assert runs[0]["raw_output"] is not None

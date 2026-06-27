@@ -72,7 +72,14 @@ export type ApplicationStatus = Application["status"];
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   if (!response.ok) {
-    throw new Error(`Request failed with ${response.status}`);
+    let detail = "";
+    try {
+      const errorBody = (await response.json()) as { detail?: string };
+      detail = errorBody.detail ? `: ${errorBody.detail}` : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(`Request failed with ${response.status}${detail}`);
   }
   return response.json() as Promise<T>;
 }
