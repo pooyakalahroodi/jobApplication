@@ -18,6 +18,8 @@ from app.repositories import job_ads as job_ad_repository
 
 EMAIL_PROMPT_VERSION = "email_v1"
 JOB_AD_PROMPT_VERSION = "job_ad_v1"
+EMAIL_REQUIRED_FIELDS = {"status", "company", "role_title", "confidence", "evidence"}
+JOB_AD_REQUIRED_FIELDS = {"title", "company", "location", "description", "confidence", "evidence"}
 
 
 def list_extraction_runs(db: Session) -> list[ExtractionRun]:
@@ -70,6 +72,7 @@ def _run_ollama_extraction(
     try:
         raw_output = ask_ollama(prompt)
         parsed = _parse_json_response(raw_output)
+        _validate_extraction_payload(parsed, source_type)
         confidence = _optional_float(parsed.get("confidence"))
         apply_result(parsed)
         return extraction_run_repository.create_extraction_run(
@@ -114,15 +117,46 @@ def _parse_json_response(raw_output: str) -> dict:
         if cleaned.lower().startswith("json"):
             cleaned = cleaned[4:].strip()
 
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("LLM response did not contain a JSON object.")
+    if not cleaned.startswith("{") or not cleaned.endswith("}"):
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise ValueError("LLM response did not contain a JSON object.")
+        cleaned = cleaned[start : end + 1]
 
-    parsed = json.loads(cleaned[start : end + 1])
+    parsed = json.loads(cleaned)
     if not isinstance(parsed, dict):
         raise ValueError("LLM response JSON must be an object.")
     return parsed
+
+
+def _validate_extraction_payload(parsed: dict, source_type: ExtractionSourceType) -> None:
+    required_fields = (
+        EMAIL_REQUIRED_FIELDS if source_type == ExtractionSourceType.EMAIL else JOB_AD_REQUIRED_FIELDS
+    )
+    missing_fields = sorted(required_fields.difference(parsed))
+    if missing_fields:
+        raise ValueError(f"LLM response is missing required fields: {', '.join(missing_fields)}")
+
+    confidence = _optional_float(parsed.get("confidence"))
+    if confidence is None:
+        raise ValueError("LLM response confidence must be a number from 0 to 1.")
+
+    evidence = _optional_str(parsed.get("evidence"))
+    if evidence is None:
+        raise ValueError("LLM response evidence must be a non-empty string.")
+
+    if source_type == ExtractionSourceType.EMAIL:
+        status = _optional_str(parsed.get("status"))
+        if status not in {item.value for item in EmailStatus}:
+            raise ValueError(
+                "LLM response status must be one of: pending, rejected, accepted, unknown."
+            )
+
+    for field in required_fields - {"confidence", "evidence", "status"}:
+        value = parsed.get(field)
+        if value is not None and not isinstance(value, str):
+            raise ValueError(f"LLM response {field} must be a string or null.")
 
 
 def _apply_email_result(db: Session, email: Email, parsed: dict) -> None:
@@ -165,12 +199,15 @@ def _apply_job_ad_result(db: Session, job_ad: JobAd, parsed: dict) -> None:
 def _email_prompt(input_text: str) -> str:
     return f"""
 Extract job application facts from this email.
-Return only one JSON object with:
-- status: one of "pending", "rejected", "accepted", "unknown"
-- company: company name or null
-- role_title: job title or null
-- confidence: number from 0 to 1
-- evidence: short phrase explaining the decision
+Return exactly one JSON object and no other text.
+Required schema:
+{{
+  "status": "pending" | "rejected" | "accepted" | "unknown",
+  "company": string | null,
+  "role_title": string | null,
+  "confidence": number,
+  "evidence": string
+}}
 
 Email:
 {input_text}
@@ -180,13 +217,16 @@ Email:
 def _job_ad_prompt(input_text: str) -> str:
     return f"""
 Extract job advertisement facts from this captured page.
-Return only one JSON object with:
-- title: job title or null
-- company: employer or recruiter name or null
-- location: work location or null
-- description: concise job description summary or null
-- confidence: number from 0 to 1
-- evidence: short phrase explaining the decision
+Return exactly one JSON object and no other text.
+Required schema:
+{{
+  "title": string | null,
+  "company": string | null,
+  "location": string | null,
+  "description": string | null,
+  "confidence": number,
+  "evidence": string
+}}
 
 Captured page:
 {input_text}
