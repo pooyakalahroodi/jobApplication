@@ -9,22 +9,36 @@ from app.repositories import application_events as event_repository
 from app.repositories import applications as application_repository
 from app.repositories import emails as email_repository
 from app.repositories import job_ads as job_ad_repository
+from app.schemas.matching import MatchingRunResult
 
 
 def score_job_email_match(job_ad: JobAd, email: Email) -> int:
     score = 0
     email_text = f"{email.subject}\n{email.body}".lower()
 
-    if job_ad.company and job_ad.company.lower() in email_text:
+    if _matches_text_or_extraction(job_ad.company, email.extracted_company, email_text):
         score += 40
-    if job_ad.title and job_ad.title.lower() in email_text:
+    if _matches_text_or_extraction(job_ad.title, email.extracted_role_title, email_text):
         score += 30
     if job_ad.url and job_ad.url.lower() in email_text:
         score += 20
-    if job_ad.location and job_ad.location.lower() in email_text:
+    if job_ad.location and _normalize(job_ad.location) in email_text:
         score += 10
 
     return score
+
+
+def _matches_text_or_extraction(expected: str | None, extracted: str | None, text: str) -> bool:
+    if not expected:
+        return False
+    normalized_expected = _normalize(expected)
+    if normalized_expected in text:
+        return True
+    return bool(extracted and normalized_expected == _normalize(extracted))
+
+
+def _normalize(value: str) -> str:
+    return " ".join(value.lower().replace(",", " ").split())
 
 
 def application_status_from_email(email_status: EmailStatus) -> ApplicationStatus:
@@ -45,11 +59,13 @@ def job_status_from_email(email_status: EmailStatus) -> JobAdStatus:
     return JobAdStatus.APPLIED
 
 
-def run_matching(db: Session) -> int:
+def run_matching(db: Session) -> MatchingRunResult:
     emails = email_repository.list_unmatched_actionable_emails(db)
     job_ads = job_ad_repository.list_matchable_job_ads(db)
 
     matched_count = 0
+    needs_review_count = 0
+    unmatched_count = 0
     for email in emails:
         best_job = None
         best_score = 0
@@ -60,17 +76,22 @@ def run_matching(db: Session) -> int:
                 best_job = job_ad
 
         if best_job is None:
+            unmatched_count += 1
             continue
 
         if best_score >= 70:
             status = application_status_from_email(email.email_status)
-            application = Application(
-                job_ad_id=best_job.id,
-                status=status,
-                company=best_job.company,
-                role_title=best_job.title,
-            )
-            application_repository.create_application(db, application)
+            application = application_repository.get_application_by_job_ad_id(db, best_job.id)
+            if application is None:
+                application = Application(
+                    job_ad_id=best_job.id,
+                    status=status,
+                    company=best_job.company or email.extracted_company,
+                    role_title=best_job.title or email.extracted_role_title,
+                )
+                application_repository.create_application(db, application)
+            else:
+                application.status = status
 
             event_repository.create_application_event(
                 db,
@@ -87,6 +108,14 @@ def run_matching(db: Session) -> int:
             matched_count += 1
         elif best_score >= 40:
             email.match_status = MatchStatus.NEEDS_REVIEW
+            needs_review_count += 1
+        else:
+            unmatched_count += 1
 
     db.commit()
-    return matched_count
+    return MatchingRunResult(
+        processed_count=len(emails),
+        matched_count=matched_count,
+        needs_review_count=needs_review_count,
+        unmatched_count=unmatched_count,
+    )
