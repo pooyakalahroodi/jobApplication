@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import applications, emails, health, job_ads, matching
+from app.api.routes import applications, emails, extraction, health, job_ads, matching
 
 
 def create_app() -> FastAPI:
@@ -18,6 +18,7 @@ def create_app() -> FastAPI:
     app.include_router(emails.router, prefix="/emails", tags=["emails"])
     app.include_router(applications.router, prefix="/applications", tags=["applications"])
     app.include_router(matching.router, prefix="/matching", tags=["matching"])
+    app.include_router(extraction.router, prefix="/extraction", tags=["extraction"])
 
     return app
 

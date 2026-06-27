@@ -29,3 +29,12 @@ class ApplicationStatus(StrEnum):
     ACCEPTED = "accepted"
     UNKNOWN = "unknown"
 
+
+class ExtractionSourceType(StrEnum):
+    EMAIL = "email"
+    JOB_AD = "job_ad"
+
+
+class ExtractionStatus(StrEnum):
+    SUCCESS = "success"
+    FAILED = "failed"

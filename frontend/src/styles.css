@@ -246,6 +246,33 @@ td small {
   font-size: 13px;
 }
 
+.extraction-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 124px;
+}
+
+.extraction-action button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.extraction-action small {
+  margin: 0;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.extraction-action .run-success {
+  color: #166534;
+}
+
+.extraction-action .run-failed {
+  color: #991b1b;
+}
+
 .status-not-applied,
 .status-not-set,
 .status-unknown {
