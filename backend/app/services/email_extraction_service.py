@@ -1,4 +1,15 @@
+import re
+from dataclasses import dataclass
+
 from app.models.enums import EmailStatus
+
+
+@dataclass(frozen=True)
+class EmailExtraction:
+    email_status: EmailStatus
+    company: str | None = None
+    role_title: str | None = None
+    confidence: float = 0.0
 
 
 def infer_email_status(subject: str, body: str) -> EmailStatus:
@@ -23,3 +34,52 @@ def infer_email_status(subject: str, body: str) -> EmailStatus:
         return EmailStatus.PENDING
     return EmailStatus.UNKNOWN
 
+
+def extract_email_facts(subject: str, body: str) -> EmailExtraction:
+    text = f"{subject}\n{body}"
+    status = infer_email_status(subject, body)
+    role_title = _extract_role_title(text)
+    company = _extract_company(text)
+
+    confidence = 0.25
+    if status != EmailStatus.UNKNOWN:
+        confidence += 0.25
+    if company:
+        confidence += 0.25
+    if role_title:
+        confidence += 0.25
+
+    return EmailExtraction(
+        email_status=status,
+        company=company,
+        role_title=role_title,
+        confidence=round(confidence, 2),
+    )
+
+
+def _extract_role_title(text: str) -> str | None:
+    patterns = [
+        r"applying (?:to|for)\s+(?P<role>.+?)\s+at\s+",
+        r"application (?:to|for)\s+(?P<role>.+?)\s+at\s+",
+        r"received your application (?:to|for)\s+(?P<role>.+?)\s+(?:at|with)\s+",
+        r"your application for\s+(?P<role>.+?)(?:\.|,|\n|$)",
+    ]
+    return _first_group_match(patterns, text, "role")
+
+
+def _extract_company(text: str) -> str | None:
+    patterns = [
+        r"\s+at\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80})(?:\.|,|\n|$)",
+        r"\s+with\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80})(?:\.|,|\n|$)",
+        r"from\s+(?P<company>[A-Z][A-Za-z0-9&.,\- ]{1,80})(?:\.|,|\n|$)",
+    ]
+    return _first_group_match(patterns, text, "company")
+
+
+def _first_group_match(patterns: list[str], text: str, group_name: str) -> str | None:
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            value = match.group(group_name).strip(" .,-\n\t")
+            return value if value else None
+    return None

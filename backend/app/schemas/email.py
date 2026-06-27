@@ -17,10 +17,12 @@ class EmailRead(BaseModel):
     subject: str
     sender: str | None
     body: str
+    extracted_company: str | None
+    extracted_role_title: str | None
+    extraction_confidence: float | None
     received_at: datetime | None
     email_status: EmailStatus
     match_status: MatchStatus
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-

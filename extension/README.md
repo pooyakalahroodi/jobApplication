@@ -46,3 +46,14 @@ Then it sends the payload to:
 http://127.0.0.1:8000/job-ads/capture
 ```
 
+## Packaging Notes
+
+Browser-generated extension packages and keys are ignored by Git:
+
+```text
+*.crx
+*.pem
+```
+
+Do not commit extension private keys.
+

@@ -14,6 +14,9 @@ class Email(Base):
     subject: Mapped[str] = mapped_column(index=True)
     sender: Mapped[str | None] = mapped_column(index=True, nullable=True)
     body: Mapped[str] = mapped_column(Text)
+    extracted_company: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    extracted_role_title: Mapped[str | None] = mapped_column(index=True, nullable=True)
+    extraction_confidence: Mapped[float | None] = mapped_column(nullable=True)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     email_status: Mapped[EmailStatus] = mapped_column(
         Enum(EmailStatus, values_callable=lambda enum: [item.value for item in enum]),
@@ -32,4 +35,3 @@ class Email(Base):
     )
 
     events = relationship("ApplicationEvent", back_populates="email")
-

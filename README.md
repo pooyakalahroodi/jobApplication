@@ -35,3 +35,33 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/github-workflow.md](docs/github
 
 The extension lives in [extension/](extension/). Load it as an unpacked Chrome/Edge extension
 while the backend is running locally, then click **Save Job** on a job advertisement page.
+
+## Current MVP Flow
+
+1. Capture a job ad from the extension. It is stored as `not_applied`.
+2. Import a job-related email through `POST /emails/import`.
+3. Run `POST /matching/run`.
+4. If the match is strong, the email is marked `set`, the job becomes `applied`, and an
+   application record is created.
+
+Example email import payload:
+
+```json
+{
+  "subject": "Thanks for applying to Backend Engineer at Acme",
+  "sender": "careers@acme.test",
+  "body": "We received your application for Backend Engineer at Acme.",
+  "received_at": "2026-06-27T14:00:00Z"
+}
+```
+
+Matching returns:
+
+```json
+{
+  "processed_count": 1,
+  "matched_count": 1,
+  "needs_review_count": 0,
+  "unmatched_count": 0
+}
+```

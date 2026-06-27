@@ -63,5 +63,6 @@ pip install -e ".[dev]"
 ruff check .
 alembic upgrade head
 pytest
+node --check extension/src/popup.js
 ```
 

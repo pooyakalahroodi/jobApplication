@@ -17,3 +17,5 @@ htmlcov/
 dist/
 build/
 node_modules/
+*.crx
+*.pem
