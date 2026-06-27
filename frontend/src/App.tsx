@@ -4,11 +4,15 @@ import {
   ApplicationStatus,
   Email,
   EmailStatus,
+  ExtractionRun,
   JobAd,
   JobAdStatus,
   MatchStatus,
   MatchingRunResult,
   confirmMatch,
+  extractEmail,
+  extractJobAd,
+  listExtractionRuns,
   listApplications,
   listEmails,
   listJobAds,
@@ -24,6 +28,7 @@ export function App() {
   const [jobs, setJobs] = useState<JobAd[]>([]);
   const [emails, setEmails] = useState<Email[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [extractionRuns, setExtractionRuns] = useState<ExtractionRun[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [message, setMessage] = useState<string>("Backend not checked yet.");
   const [matchingResult, setMatchingResult] = useState<MatchingRunResult | null>(null);
@@ -33,14 +38,16 @@ export function App() {
   async function refreshData() {
     setLoadState("loading");
     try {
-      const [jobData, emailData, applicationData] = await Promise.all([
+      const [jobData, emailData, applicationData, extractionRunData] = await Promise.all([
         listJobAds(),
         listEmails(),
-        listApplications()
+        listApplications(),
+        listExtractionRuns()
       ]);
       setJobs(jobData);
       setEmails(emailData);
       setApplications(applicationData);
+      setExtractionRuns(extractionRunData);
       setMessage("Dashboard is up to date.");
       setLoadState("ready");
     } catch (error) {
@@ -119,6 +126,30 @@ export function App() {
     }
   }
 
+  async function handleExtractJob(jobId: number) {
+    setMessage("Running local LLM for job...");
+    try {
+      await extractJobAd(jobId);
+      await refreshData();
+      setMessage("Job extraction finished.");
+    } catch (error) {
+      await refreshData();
+      setMessage(error instanceof Error ? error.message : "Job extraction failed.");
+    }
+  }
+
+  async function handleExtractEmail(emailId: number) {
+    setMessage("Running local LLM for email...");
+    try {
+      await extractEmail(emailId);
+      await refreshData();
+      setMessage("Email extraction finished.");
+    } catch (error) {
+      await refreshData();
+      setMessage(error instanceof Error ? error.message : "Email extraction failed.");
+    }
+  }
+
   useEffect(() => {
     void refreshData();
   }, []);
@@ -134,6 +165,17 @@ export function App() {
       accepted: applications.filter((application) => application.status === "accepted").length
     };
   }, [applications, emails, jobs]);
+
+  const latestExtractionBySource = useMemo(() => {
+    const map = new Map<string, ExtractionRun>();
+    for (const run of extractionRuns) {
+      const key = `${run.source_type}:${run.source_id}`;
+      if (!map.has(key)) {
+        map.set(key, run);
+      }
+    }
+    return map;
+  }, [extractionRuns]);
 
   return (
     <main className="app-shell">
@@ -201,13 +243,20 @@ export function App() {
 
       <section className="layout">
         <Panel title="Captured Jobs">
-          <JobTable jobs={jobs} onStatusChange={handleJobStatusChange} />
+          <JobTable
+            jobs={jobs}
+            extractionRuns={latestExtractionBySource}
+            onStatusChange={handleJobStatusChange}
+            onExtract={handleExtractJob}
+          />
         </Panel>
         <Panel title="Emails">
           <EmailTable
             emails={emails}
+            extractionRuns={latestExtractionBySource}
             onEmailStatusChange={handleEmailStatusChange}
             onMatchStatusChange={handleMatchStatusChange}
+            onExtract={handleExtractEmail}
           />
         </Panel>
         <Panel title="Applications">
@@ -241,10 +290,14 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function JobTable({
   jobs,
-  onStatusChange
+  extractionRuns,
+  onStatusChange,
+  onExtract
 }: {
   jobs: JobAd[];
+  extractionRuns: Map<string, ExtractionRun>;
   onStatusChange: (jobId: number, status: JobAdStatus) => void;
+  onExtract: (jobId: number) => void;
 }) {
   if (jobs.length === 0) {
     return <EmptyState text="No captured jobs yet." />;
@@ -259,6 +312,7 @@ function JobTable({
             <th>Company</th>
             <th>Location</th>
             <th>Status</th>
+            <th>LLM</th>
           </tr>
         </thead>
         <tbody>
@@ -282,6 +336,12 @@ function JobTable({
                   onChange={(value) => onStatusChange(job.id, value as JobAdStatus)}
                 />
               </td>
+              <td>
+                <ExtractionAction
+                  run={extractionRuns.get(`job_ad:${job.id}`)}
+                  onExtract={() => onExtract(job.id)}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -292,12 +352,16 @@ function JobTable({
 
 function EmailTable({
   emails,
+  extractionRuns,
   onEmailStatusChange,
-  onMatchStatusChange
+  onMatchStatusChange,
+  onExtract
 }: {
   emails: Email[];
+  extractionRuns: Map<string, ExtractionRun>;
   onEmailStatusChange: (emailId: number, status: EmailStatus) => void;
   onMatchStatusChange: (emailId: number, status: MatchStatus) => void;
+  onExtract: (emailId: number) => void;
 }) {
   if (emails.length === 0) {
     return <EmptyState text="No imported emails yet." />;
@@ -312,6 +376,7 @@ function EmailTable({
             <th>Extracted</th>
             <th>Email</th>
             <th>Match</th>
+            <th>LLM</th>
           </tr>
         </thead>
         <tbody>
@@ -334,6 +399,12 @@ function EmailTable({
                   value={email.match_status}
                   options={["not_set", "set", "needs_review"]}
                   onChange={(value) => onMatchStatusChange(email.id, value as MatchStatus)}
+                />
+              </td>
+              <td>
+                <ExtractionAction
+                  run={extractionRuns.get(`email:${email.id}`)}
+                  onExtract={() => onExtract(email.id)}
                 />
               </td>
             </tr>
@@ -411,6 +482,30 @@ function StatusSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function ExtractionAction({
+  run,
+  onExtract
+}: {
+  run: ExtractionRun | undefined;
+  onExtract: () => void;
+}) {
+  return (
+    <div className="extraction-action">
+      <button type="button" onClick={onExtract}>
+        Extract
+      </button>
+      {run ? (
+        <small className={run.status === "success" ? "run-success" : "run-failed"}>
+          {run.status}
+          {run.confidence !== null ? ` ${Math.round(run.confidence * 100)}%` : ""}
+        </small>
+      ) : (
+        <small>not run</small>
+      )}
+    </div>
   );
 }
 

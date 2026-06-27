@@ -48,6 +48,22 @@ export type MatchingRunResult = {
   unmatched_count: number;
 };
 
+export type ExtractionRun = {
+  id: number;
+  source_type: "email" | "job_ad";
+  source_id: number;
+  extractor: string;
+  model: string | null;
+  prompt_version: string;
+  raw_input_hash: string;
+  raw_output: string | null;
+  parsed_json: Record<string, unknown> | null;
+  confidence: number | null;
+  status: "success" | "failed";
+  error_message: string | null;
+  created_at: string;
+};
+
 export type JobAdStatus = JobAd["status"];
 export type EmailStatus = Email["email_status"];
 export type MatchStatus = Email["match_status"];
@@ -113,5 +129,17 @@ export function confirmMatch(jobAdId: number, emailId: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ job_ad_id: jobAdId, email_id: emailId })
   });
+}
+
+export function extractJobAd(jobAdId: number) {
+  return request<ExtractionRun>(`/extraction/job-ads/${jobAdId}`, { method: "POST" });
+}
+
+export function extractEmail(emailId: number) {
+  return request<ExtractionRun>(`/extraction/emails/${emailId}`, { method: "POST" });
+}
+
+export function listExtractionRuns() {
+  return request<ExtractionRun[]>("/extraction/runs");
 }
 

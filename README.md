@@ -52,16 +52,37 @@ Open:
 http://127.0.0.1:5173
 ```
 
+## Local LLM Extraction
+
+The app can use a local Ollama model to improve captured job ads and imported emails.
+The default settings live in [backend/.env.example](backend/.env.example):
+
+```powershell
+ollama serve
+ollama pull llama3.1:8b
+```
+
+When the backend and dashboard are running, use the **Extract** button on a job or email row.
+The backend stores each run in `extraction_runs`, including the model, parsed JSON, raw output,
+confidence, and failure message when Ollama is unavailable or returns invalid JSON.
+
+Useful endpoints:
+
+- `POST /extraction/job-ads/{job_ad_id}`
+- `POST /extraction/emails/{email_id}`
+- `GET /extraction/runs`
+
 ## Current MVP Flow
 
 1. Capture a job ad from the extension. It is stored as `not_applied`.
 2. Import a job-related email through `POST /emails/import`.
-3. Run `POST /matching/run`.
-4. If the match is strong, the email is marked `set`, the job becomes `applied`, and an
+3. Use **Extract** on jobs or emails when the deterministic parser did not capture enough detail.
+4. Run `POST /matching/run`.
+5. If the match is strong, the email is marked `set`, the job becomes `applied`, and an
    application record is created.
-5. If a match needs manual review, use the dashboard's **Confirm Match** panel to connect
+6. If a match needs manual review, use the dashboard's **Confirm Match** panel to connect
    a captured job and imported email.
-6. Use the status dropdowns in the dashboard to correct job, email, match, and application
+7. Use the status dropdowns in the dashboard to correct job, email, match, and application
    statuses.
 
 Example email import payload:
