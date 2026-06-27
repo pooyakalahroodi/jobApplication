@@ -36,6 +36,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/github-workflow.md](docs/github
 The extension lives in [extension/](extension/). Load it as an unpacked Chrome/Edge extension
 while the backend is running locally, then click **Save Job** on a job advertisement page.
 
+## Frontend Dashboard
+
+The React dashboard lives in [frontend/](frontend/).
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173
+```
+
 ## Current MVP Flow
 
 1. Capture a job ad from the extension. It is stored as `not_applied`.
