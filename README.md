@@ -30,3 +30,8 @@ http://127.0.0.1:8000/docs
 
 Changes should be made on development branches and merged into `main` through pull requests.
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/github-workflow.md](docs/github-workflow.md).
+
+## Browser Extension
+
+The extension lives in [extension/](extension/). Load it as an unpacked Chrome/Edge extension
+while the backend is running locally, then click **Save Job** on a job advertisement page.

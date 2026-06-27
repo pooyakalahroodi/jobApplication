@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Text, func
+from sqlalchemy import DateTime, Enum, JSON, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -16,6 +16,11 @@ class JobAd(Base):
     company: Mapped[str | None] = mapped_column(index=True, nullable=True)
     location: Mapped[str | None] = mapped_column(nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str | None] = mapped_column(nullable=True)
+    page_title: Mapped[str | None] = mapped_column(nullable=True)
+    selected_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    json_ld: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     status: Mapped[JobAdStatus] = mapped_column(
         Enum(JobAdStatus, values_callable=lambda enum: [item.value for item in enum]),
         default=JobAdStatus.NOT_APPLIED,
@@ -29,4 +34,3 @@ class JobAd(Base):
     )
 
     applications = relationship("Application", back_populates="job_ad")
-
