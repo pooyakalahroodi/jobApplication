@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Application,
+  ApplicationDetail,
   ApplicationStatus,
   Email,
   EmailStatus,
@@ -10,8 +11,12 @@ import {
   MatchStatus,
   MatchingRunResult,
   confirmMatch,
+  deleteApplication,
+  deleteEmail,
+  deleteJobAd,
   extractEmail,
   extractJobAd,
+  getApplicationDetail,
   listExtractionRuns,
   listApplications,
   listEmails,
@@ -35,6 +40,7 @@ export function App() {
   const [manualJobId, setManualJobId] = useState<string>("");
   const [manualEmailId, setManualEmailId] = useState<string>("");
   const [selectedExtractionRunId, setSelectedExtractionRunId] = useState<number | null>(null);
+  const [selectedApplicationDetail, setSelectedApplicationDetail] = useState<ApplicationDetail | null>(null);
 
   async function refreshData() {
     setLoadState("loading");
@@ -151,6 +157,62 @@ export function App() {
     }
   }
 
+  async function handleViewApplication(applicationId: number) {
+    setMessage("Loading application details...");
+    try {
+      const detail = await getApplicationDetail(applicationId);
+      setSelectedApplicationDetail(detail);
+      setMessage("Application details loaded.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not load application details.");
+    }
+  }
+
+  async function handleDeleteJob(jobId: number) {
+    if (!window.confirm("Delete this captured job? Existing application records will stay.")) {
+      return;
+    }
+    setMessage("Deleting job...");
+    try {
+      await deleteJobAd(jobId);
+      await refreshData();
+      setMessage("Job deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete job.");
+    }
+  }
+
+  async function handleDeleteEmail(emailId: number) {
+    if (!window.confirm("Delete this email? Existing application timeline entries will stay.")) {
+      return;
+    }
+    setMessage("Deleting email...");
+    try {
+      await deleteEmail(emailId);
+      await refreshData();
+      setMessage("Email deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete email.");
+    }
+  }
+
+  async function handleDeleteApplication(applicationId: number) {
+    if (!window.confirm("Delete this application record?")) {
+      return;
+    }
+    setMessage("Deleting application...");
+    try {
+      await deleteApplication(applicationId);
+      if (selectedApplicationDetail?.id === applicationId) {
+        setSelectedApplicationDetail(null);
+      }
+      await refreshData();
+      setMessage("Application deleted.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete application.");
+    }
+  }
+
   useEffect(() => {
     void refreshData();
   }, []);
@@ -254,6 +316,7 @@ export function App() {
             onStatusChange={handleJobStatusChange}
             onExtract={handleExtractJob}
             onViewExtraction={setSelectedExtractionRunId}
+            onDelete={handleDeleteJob}
           />
         </Panel>
         <Panel title="Emails">
@@ -264,16 +327,23 @@ export function App() {
             onMatchStatusChange={handleMatchStatusChange}
             onExtract={handleExtractEmail}
             onViewExtraction={setSelectedExtractionRunId}
+            onDelete={handleDeleteEmail}
           />
         </Panel>
         <Panel title="Applications">
           <ApplicationTable
             applications={applications}
             onStatusChange={handleApplicationStatusChange}
+            onView={handleViewApplication}
+            onDelete={handleDeleteApplication}
           />
         </Panel>
       </section>
 
+      <ApplicationDetailsPanel
+        detail={selectedApplicationDetail}
+        onClose={() => setSelectedApplicationDetail(null)}
+      />
       <ExtractionDetailsPanel
         run={selectedExtractionRun}
         onClose={() => setSelectedExtractionRunId(null)}
@@ -305,13 +375,15 @@ function JobTable({
   extractionRuns,
   onStatusChange,
   onExtract,
-  onViewExtraction
+  onViewExtraction,
+  onDelete
 }: {
   jobs: JobAd[];
   extractionRuns: Map<string, ExtractionRun>;
   onStatusChange: (jobId: number, status: JobAdStatus) => void;
   onExtract: (jobId: number) => void;
   onViewExtraction: (runId: number) => void;
+  onDelete: (jobId: number) => void;
 }) {
   if (jobs.length === 0) {
     return <EmptyState text="No captured jobs yet." />;
@@ -327,6 +399,7 @@ function JobTable({
             <th>Location</th>
             <th>Status</th>
             <th>LLM</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -357,6 +430,11 @@ function JobTable({
                   onView={onViewExtraction}
                 />
               </td>
+              <td>
+                <button type="button" className="danger-button" onClick={() => onDelete(job.id)}>
+                  Delete
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -371,7 +449,8 @@ function EmailTable({
   onEmailStatusChange,
   onMatchStatusChange,
   onExtract,
-  onViewExtraction
+  onViewExtraction,
+  onDelete
 }: {
   emails: Email[];
   extractionRuns: Map<string, ExtractionRun>;
@@ -379,6 +458,7 @@ function EmailTable({
   onMatchStatusChange: (emailId: number, status: MatchStatus) => void;
   onExtract: (emailId: number) => void;
   onViewExtraction: (runId: number) => void;
+  onDelete: (emailId: number) => void;
 }) {
   if (emails.length === 0) {
     return <EmptyState text="No imported emails yet." />;
@@ -394,6 +474,7 @@ function EmailTable({
             <th>Email</th>
             <th>Match</th>
             <th>LLM</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -425,6 +506,11 @@ function EmailTable({
                   onView={onViewExtraction}
                 />
               </td>
+              <td>
+                <button type="button" className="danger-button" onClick={() => onDelete(email.id)}>
+                  Delete
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -435,10 +521,14 @@ function EmailTable({
 
 function ApplicationTable({
   applications,
-  onStatusChange
+  onStatusChange,
+  onView,
+  onDelete
 }: {
   applications: Application[];
   onStatusChange: (applicationId: number, status: ApplicationStatus) => void;
+  onView: (applicationId: number) => void;
+  onDelete: (applicationId: number) => void;
 }) {
   if (applications.length === 0) {
     return <EmptyState text="No applications yet." />;
@@ -453,6 +543,7 @@ function ApplicationTable({
             <th>Company</th>
             <th>Status</th>
             <th>Updated</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -468,6 +559,20 @@ function ApplicationTable({
                 />
               </td>
               <td>{formatDate(application.updated_at)}</td>
+              <td>
+                <div className="row-actions">
+                  <button type="button" onClick={() => onView(application.id)}>
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => onDelete(application.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -500,6 +605,71 @@ function StatusSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function ApplicationDetailsPanel({
+  detail,
+  onClose
+}: {
+  detail: ApplicationDetail | null;
+  onClose: () => void;
+}) {
+  if (!detail) {
+    return null;
+  }
+
+  return (
+    <section className="details-panel" aria-label="Application details">
+      <header>
+        <div>
+          <h2>Application Details</h2>
+          <p>
+            {detail.role_title ?? "-"} {detail.company ? `- ${detail.company}` : ""}
+          </p>
+        </div>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+      </header>
+      <div className="details-grid">
+        <Detail label="Status" value={detail.status} />
+        <Detail label="Company" value={detail.company ?? "-"} />
+        <Detail label="Role" value={detail.role_title ?? "-"} />
+        <Detail label="Updated" value={formatDate(detail.updated_at)} />
+      </div>
+      {detail.job_ad ? (
+        <div className="detail-block">
+          <h3>Captured Job</h3>
+          <p>
+            {detail.job_ad.url ? (
+              <a href={detail.job_ad.url} target="_blank" rel="noreferrer">
+                {detail.job_ad.title}
+              </a>
+            ) : (
+              detail.job_ad.title
+            )}
+            {detail.job_ad.location ? ` - ${detail.job_ad.location}` : ""}
+          </p>
+        </div>
+      ) : null}
+      <div className="detail-block">
+        <h3>Timeline</h3>
+        {detail.events.length > 0 ? (
+          <ol className="timeline">
+            {detail.events.map((event) => (
+              <li key={event.id}>
+                <strong>{event.event_type.replace("_", " ")}</strong>
+                <span>{formatDate(event.event_date ?? event.created_at)}</span>
+                {event.notes ? <p>{event.notes}</p> : null}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p>No timeline events yet.</p>
+        )}
+      </div>
+    </section>
   );
 }
 

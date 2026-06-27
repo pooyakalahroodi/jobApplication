@@ -41,6 +41,21 @@ export type Application = {
   updated_at: string;
 };
 
+export type ApplicationEvent = {
+  id: number;
+  application_id: number;
+  email_id: number | null;
+  event_type: string;
+  event_date: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type ApplicationDetail = Application & {
+  job_ad: JobAd | null;
+  events: ApplicationEvent[];
+};
+
 export type MatchingRunResult = {
   processed_count: number;
   matched_count: number;
@@ -84,6 +99,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function requestNoContent(path: string, init?: RequestInit): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}${path}`, init);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const errorBody = (await response.json()) as { detail?: string };
+      detail = errorBody.detail ? `: ${errorBody.detail}` : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(`Request failed with ${response.status}${detail}`);
+  }
+}
+
 export function listJobAds() {
   return request<JobAd[]>("/job-ads");
 }
@@ -94,6 +123,10 @@ export function listEmails() {
 
 export function listApplications() {
   return request<Application[]>("/applications");
+}
+
+export function getApplicationDetail(id: number) {
+  return request<ApplicationDetail>(`/applications/${id}/detail`);
 }
 
 export function runMatching() {
@@ -128,6 +161,18 @@ export function updateApplication(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
+}
+
+export function deleteJobAd(id: number) {
+  return requestNoContent(`/job-ads/${id}`, { method: "DELETE" });
+}
+
+export function deleteEmail(id: number) {
+  return requestNoContent(`/emails/${id}`, { method: "DELETE" });
+}
+
+export function deleteApplication(id: number) {
+  return requestNoContent(`/applications/${id}`, { method: "DELETE" });
 }
 
 export function confirmMatch(jobAdId: number, emailId: number) {

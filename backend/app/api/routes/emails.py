@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -31,3 +31,9 @@ def update_email(
     db: Session = Depends(get_db),
 ) -> Email:
     return email_service.update_email(db, email_id, payload)
+
+
+@router.delete("/{email_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_email(email_id: int, db: Session = Depends(get_db)) -> Response:
+    email_service.delete_email(db, email_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
