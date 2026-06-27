@@ -1,4 +1,3 @@
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.application import Application
@@ -6,6 +5,10 @@ from app.models.application_event import ApplicationEvent
 from app.models.email import Email
 from app.models.enums import ApplicationStatus, EmailStatus, JobAdStatus, MatchStatus
 from app.models.job_ad import JobAd
+from app.repositories import application_events as event_repository
+from app.repositories import applications as application_repository
+from app.repositories import emails as email_repository
+from app.repositories import job_ads as job_ad_repository
 
 
 def score_job_email_match(job_ad: JobAd, email: Email) -> int:
@@ -43,15 +46,8 @@ def job_status_from_email(email_status: EmailStatus) -> JobAdStatus:
 
 
 def run_matching(db: Session) -> int:
-    emails = db.scalars(
-        select(Email).where(
-            Email.match_status == MatchStatus.NOT_SET,
-            Email.email_status.in_([EmailStatus.PENDING, EmailStatus.REJECTED, EmailStatus.ACCEPTED]),
-        )
-    ).all()
-    job_ads = db.scalars(
-        select(JobAd).where(JobAd.status.in_([JobAdStatus.NOT_APPLIED, JobAdStatus.APPLIED]))
-    ).all()
+    emails = email_repository.list_unmatched_actionable_emails(db)
+    job_ads = job_ad_repository.list_matchable_job_ads(db)
 
     matched_count = 0
     for email in emails:
@@ -74,17 +70,17 @@ def run_matching(db: Session) -> int:
                 company=best_job.company,
                 role_title=best_job.title,
             )
-            db.add(application)
-            db.flush()
+            application_repository.create_application(db, application)
 
-            db.add(
+            event_repository.create_application_event(
+                db,
                 ApplicationEvent(
                     application_id=application.id,
                     email_id=email.id,
                     event_type=email.email_status.value,
                     event_date=email.received_at,
                     notes=f"Auto-matched with score {best_score}.",
-                )
+                ),
             )
             best_job.status = job_status_from_email(email.email_status)
             email.match_status = MatchStatus.SET
@@ -94,4 +90,3 @@ def run_matching(db: Session) -> int:
 
     db.commit()
     return matched_count
-
