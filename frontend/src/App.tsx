@@ -34,6 +34,7 @@ export function App() {
   const [matchingResult, setMatchingResult] = useState<MatchingRunResult | null>(null);
   const [manualJobId, setManualJobId] = useState<string>("");
   const [manualEmailId, setManualEmailId] = useState<string>("");
+  const [selectedExtractionRunId, setSelectedExtractionRunId] = useState<number | null>(null);
 
   async function refreshData() {
     setLoadState("loading");
@@ -177,6 +178,10 @@ export function App() {
     return map;
   }, [extractionRuns]);
 
+  const selectedExtractionRun = useMemo(() => {
+    return extractionRuns.find((run) => run.id === selectedExtractionRunId) ?? null;
+  }, [extractionRuns, selectedExtractionRunId]);
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -248,6 +253,7 @@ export function App() {
             extractionRuns={latestExtractionBySource}
             onStatusChange={handleJobStatusChange}
             onExtract={handleExtractJob}
+            onViewExtraction={setSelectedExtractionRunId}
           />
         </Panel>
         <Panel title="Emails">
@@ -257,6 +263,7 @@ export function App() {
             onEmailStatusChange={handleEmailStatusChange}
             onMatchStatusChange={handleMatchStatusChange}
             onExtract={handleExtractEmail}
+            onViewExtraction={setSelectedExtractionRunId}
           />
         </Panel>
         <Panel title="Applications">
@@ -266,6 +273,11 @@ export function App() {
           />
         </Panel>
       </section>
+
+      <ExtractionDetailsPanel
+        run={selectedExtractionRun}
+        onClose={() => setSelectedExtractionRunId(null)}
+      />
     </main>
   );
 }
@@ -292,12 +304,14 @@ function JobTable({
   jobs,
   extractionRuns,
   onStatusChange,
-  onExtract
+  onExtract,
+  onViewExtraction
 }: {
   jobs: JobAd[];
   extractionRuns: Map<string, ExtractionRun>;
   onStatusChange: (jobId: number, status: JobAdStatus) => void;
   onExtract: (jobId: number) => void;
+  onViewExtraction: (runId: number) => void;
 }) {
   if (jobs.length === 0) {
     return <EmptyState text="No captured jobs yet." />;
@@ -340,6 +354,7 @@ function JobTable({
                 <ExtractionAction
                   run={extractionRuns.get(`job_ad:${job.id}`)}
                   onExtract={() => onExtract(job.id)}
+                  onView={onViewExtraction}
                 />
               </td>
             </tr>
@@ -355,13 +370,15 @@ function EmailTable({
   extractionRuns,
   onEmailStatusChange,
   onMatchStatusChange,
-  onExtract
+  onExtract,
+  onViewExtraction
 }: {
   emails: Email[];
   extractionRuns: Map<string, ExtractionRun>;
   onEmailStatusChange: (emailId: number, status: EmailStatus) => void;
   onMatchStatusChange: (emailId: number, status: MatchStatus) => void;
   onExtract: (emailId: number) => void;
+  onViewExtraction: (runId: number) => void;
 }) {
   if (emails.length === 0) {
     return <EmptyState text="No imported emails yet." />;
@@ -405,6 +422,7 @@ function EmailTable({
                 <ExtractionAction
                   run={extractionRuns.get(`email:${email.id}`)}
                   onExtract={() => onExtract(email.id)}
+                  onView={onViewExtraction}
                 />
               </td>
             </tr>
@@ -487,10 +505,12 @@ function StatusSelect({
 
 function ExtractionAction({
   run,
-  onExtract
+  onExtract,
+  onView
 }: {
   run: ExtractionRun | undefined;
   onExtract: () => void;
+  onView: (runId: number) => void;
 }) {
   return (
     <div className="extraction-action">
@@ -505,6 +525,81 @@ function ExtractionAction({
       ) : (
         <small>not run</small>
       )}
+      {run ? (
+        <button type="button" className="text-button" onClick={() => onView(run.id)}>
+          View
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function ExtractionDetailsPanel({
+  run,
+  onClose
+}: {
+  run: ExtractionRun | null;
+  onClose: () => void;
+}) {
+  if (!run) {
+    return null;
+  }
+
+  const evidence = typeof run.parsed_json?.evidence === "string" ? run.parsed_json.evidence : null;
+
+  return (
+    <section className="details-panel" aria-label="Extraction details">
+      <header>
+        <div>
+          <h2>Extraction Details</h2>
+          <p>
+            {run.source_type.replace("_", " ")} #{run.source_id} via {run.model ?? run.extractor}
+          </p>
+        </div>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+      </header>
+      <div className="details-grid">
+        <Detail label="Status" value={run.status} />
+        <Detail
+          label="Confidence"
+          value={run.confidence !== null ? `${Math.round(run.confidence * 100)}%` : "-"}
+        />
+        <Detail label="Prompt" value={run.prompt_version} />
+        <Detail label="Created" value={formatDate(run.created_at)} />
+      </div>
+      {evidence ? (
+        <div className="detail-block">
+          <h3>Evidence</h3>
+          <p>{evidence}</p>
+        </div>
+      ) : null}
+      {run.error_message ? (
+        <div className="detail-block error-block">
+          <h3>Error</h3>
+          <p>{run.error_message}</p>
+        </div>
+      ) : null}
+      <div className="detail-block">
+        <h3>Parsed JSON</h3>
+        <pre>{JSON.stringify(run.parsed_json, null, 2)}</pre>
+      </div>
+      {run.raw_output ? (
+        <div className="detail-block">
+          <h3>Raw Output</h3>
+          <pre>{run.raw_output}</pre>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="detail">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
