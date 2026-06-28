@@ -22,6 +22,23 @@ def test_score_job_email_match() -> None:
     assert score_job_email_match(job_ad, email) >= 70
 
 
+def test_score_job_email_match_with_partial_extracted_values() -> None:
+    job_ad = JobAd(
+        title="Softwareentwickler Java (m/w/d) - Remote",
+        company="Academic Work Germany GmbH Hamburg",
+        location="Home-Office",
+    )
+    email = Email(
+        subject="Ihre Bewerbung als Softwareentwickler Java",
+        sender="info@example.test",
+        body="Vielen Dank fuer Ihre Bewerbung bei Academic Work. Wir pruefen Ihre Unterlagen.",
+        extracted_company="Academic Work",
+        extracted_role_title="Softwareentwickler Java",
+    )
+
+    assert score_job_email_match(job_ad, email) >= 70
+
+
 def test_extract_email_facts() -> None:
     extraction = extract_email_facts(
         "Thanks for applying to Backend Engineer at Acme",

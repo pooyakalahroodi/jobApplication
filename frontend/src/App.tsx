@@ -44,8 +44,8 @@ export function App() {
   const [selectedJob, setSelectedJob] = useState<JobAd | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [jobStatusFilter, setJobStatusFilter] = useState<string>("all");
-  const [emailStatusFilter, setEmailStatusFilter] = useState<string>("all");
+  const [jobStatusFilter, setJobStatusFilter] = useState<string>("available");
+  const [emailStatusFilter, setEmailStatusFilter] = useState<string>("unmatched");
   const [applicationStatusFilter, setApplicationStatusFilter] = useState<string>("all");
 
   async function refreshData() {
@@ -250,6 +250,18 @@ export function App() {
     return extractionRuns.find((run) => run.id === selectedExtractionRunId) ?? null;
   }, [extractionRuns, selectedExtractionRunId]);
 
+  const assignedJobIds = useMemo(() => {
+    return new Set(applications.map((application) => application.job_ad_id).filter(Boolean));
+  }, [applications]);
+
+  const availableJobs = useMemo(() => {
+    return jobs.filter((job) => job.status === "not_applied" && !assignedJobIds.has(job.id));
+  }, [assignedJobIds, jobs]);
+
+  const availableEmails = useMemo(() => {
+    return emails.filter((email) => email.match_status !== "set");
+  }, [emails]);
+
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
@@ -258,10 +270,13 @@ export function App() {
         .join(" ")
         .toLowerCase();
       const matchesSearch = normalizedSearch === "" || text.includes(normalizedSearch);
-      const matchesStatus = jobStatusFilter === "all" || job.status === jobStatusFilter;
+      const matchesStatus =
+        jobStatusFilter === "available"
+          ? job.status === "not_applied" && !assignedJobIds.has(job.id)
+          : jobStatusFilter === "all" || job.status === jobStatusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [jobStatusFilter, jobs, normalizedSearch]);
+  }, [assignedJobIds, jobStatusFilter, jobs, normalizedSearch]);
 
   const filteredEmails = useMemo(() => {
     return emails.filter((email) => {
@@ -276,7 +291,10 @@ export function App() {
         .join(" ")
         .toLowerCase();
       const matchesSearch = normalizedSearch === "" || text.includes(normalizedSearch);
-      const matchesStatus = emailStatusFilter === "all" || email.email_status === emailStatusFilter;
+      const matchesStatus =
+        emailStatusFilter === "unmatched"
+          ? email.match_status !== "set"
+          : emailStatusFilter === "all" || email.email_status === emailStatusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [emailStatusFilter, emails, normalizedSearch]);
@@ -310,9 +328,9 @@ export function App() {
 
       <section className="summary-grid" aria-label="Application summary">
         <Metric label="Captured jobs" value={summary.captured} />
-        <Metric label="Not applied" value={summary.notApplied} />
+        <Metric label="Available jobs" value={availableJobs.length} />
         <Metric label="Applications" value={summary.applications} />
-        <Metric label="Needs review" value={summary.needsReview} />
+        <Metric label="Open emails" value={availableEmails.length} />
         <Metric label="Pending" value={summary.pending} />
         <Metric label="Rejected" value={summary.rejected} />
         <Metric label="Accepted" value={summary.accepted} />
@@ -340,6 +358,7 @@ export function App() {
           <span>Jobs</span>
           <select value={jobStatusFilter} onChange={(event) => setJobStatusFilter(event.target.value)}>
             <option value="all">All jobs</option>
+            <option value="available">Available</option>
             <option value="not_applied">Not applied</option>
             <option value="applied">Applied</option>
             <option value="rejected">Rejected</option>
@@ -351,6 +370,7 @@ export function App() {
           <span>Emails</span>
           <select value={emailStatusFilter} onChange={(event) => setEmailStatusFilter(event.target.value)}>
             <option value="all">All emails</option>
+            <option value="unmatched">Unmatched</option>
             <option value="pending">Pending</option>
             <option value="rejected">Rejected</option>
             <option value="accepted">Accepted</option>
@@ -373,15 +393,15 @@ export function App() {
         </label>
       </section>
 
-      <section className="review-panel" aria-label="Manual match review">
+      <section className="review-panel workbench-panel" aria-label="Manual match review">
         <div>
-          <h2>Confirm Match</h2>
-          <p>Connect an imported email to a captured job when automatic matching is uncertain.</p>
+          <h2>Review Queue</h2>
+          <p>Match only open jobs and unassigned emails. Confirmed pairs move into Applications.</p>
         </div>
         <div className="review-controls">
           <select value={manualJobId} onChange={(event) => setManualJobId(event.target.value)}>
             <option value="">Select job</option>
-            {jobs.map((job) => (
+            {availableJobs.map((job) => (
               <option key={job.id} value={job.id}>
                 {job.title} {job.company ? `- ${job.company}` : ""}
               </option>
@@ -389,7 +409,7 @@ export function App() {
           </select>
           <select value={manualEmailId} onChange={(event) => setManualEmailId(event.target.value)}>
             <option value="">Select email</option>
-            {emails.map((email) => (
+            {availableEmails.map((email) => (
               <option key={email.id} value={email.id}>
                 {email.subject}
               </option>
@@ -402,7 +422,7 @@ export function App() {
       </section>
 
       <section className="layout">
-        <Panel title="Captured Jobs">
+        <Panel title={`Available Jobs (${filteredJobs.length})`}>
           <JobTable
             jobs={filteredJobs}
             extractionRuns={latestExtractionBySource}
@@ -413,7 +433,7 @@ export function App() {
             onDelete={handleDeleteJob}
           />
         </Panel>
-        <Panel title="Emails">
+        <Panel title={`Open Emails (${filteredEmails.length})`}>
           <EmailTable
             emails={filteredEmails}
             extractionRuns={latestExtractionBySource}
@@ -425,7 +445,7 @@ export function App() {
             onDelete={handleDeleteEmail}
           />
         </Panel>
-        <Panel title="Applications">
+        <Panel title={`Applications (${filteredApplications.length})`}>
           <ApplicationTable
             applications={filteredApplications}
             onStatusChange={handleApplicationStatusChange}
@@ -435,16 +455,24 @@ export function App() {
         </Panel>
       </section>
 
-      <JobDetailsPanel job={selectedJob} onClose={() => setSelectedJob(null)} />
-      <EmailDetailsPanel email={selectedEmail} onClose={() => setSelectedEmail(null)} />
-      <ApplicationDetailsPanel
-        detail={selectedApplicationDetail}
-        onClose={() => setSelectedApplicationDetail(null)}
-      />
-      <ExtractionDetailsPanel
-        run={selectedExtractionRun}
-        onClose={() => setSelectedExtractionRunId(null)}
-      />
+      <Modal open={selectedJob !== null} onClose={() => setSelectedJob(null)}>
+        <JobDetailsPanel job={selectedJob} onClose={() => setSelectedJob(null)} />
+      </Modal>
+      <Modal open={selectedEmail !== null} onClose={() => setSelectedEmail(null)}>
+        <EmailDetailsPanel email={selectedEmail} onClose={() => setSelectedEmail(null)} />
+      </Modal>
+      <Modal open={selectedApplicationDetail !== null} onClose={() => setSelectedApplicationDetail(null)}>
+        <ApplicationDetailsPanel
+          detail={selectedApplicationDetail}
+          onClose={() => setSelectedApplicationDetail(null)}
+        />
+      </Modal>
+      <Modal open={selectedExtractionRun !== null} onClose={() => setSelectedExtractionRunId(null)}>
+        <ExtractionDetailsPanel
+          run={selectedExtractionRun}
+          onClose={() => setSelectedExtractionRunId(null)}
+        />
+      </Modal>
     </main>
   );
 }
@@ -505,7 +533,7 @@ function JobTable({
               </h3>
               <p>
                 {job.company ?? "Unknown company"}
-                {job.location ? ` · ${job.location}` : ""}
+                {job.location ? ` - ${job.location}` : ""}
               </p>
             </div>
             <StatusSelect
@@ -568,8 +596,8 @@ function EmailTable({
               <h3>{email.subject}</h3>
               <p>
                 {email.sender ?? "Unknown sender"}
-                {email.extracted_role_title ? ` · ${email.extracted_role_title}` : ""}
-                {email.extracted_company ? ` · ${email.extracted_company}` : ""}
+                {email.extracted_role_title ? ` - ${email.extracted_role_title}` : ""}
+                {email.extracted_company ? ` - ${email.extracted_company}` : ""}
               </p>
             </div>
             <div className="status-stack">
@@ -630,7 +658,7 @@ function ApplicationTable({
             <div>
               <h3>{application.role_title ?? "Untitled application"}</h3>
               <p>
-                {application.company ?? "Unknown company"} · Updated {formatDate(application.updated_at)}
+                {application.company ?? "Unknown company"} - Updated {formatDate(application.updated_at)}
               </p>
             </div>
             <StatusSelect
@@ -684,6 +712,28 @@ function StatusSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function Modal({
+  open,
+  children,
+  onClose
+}: {
+  open: boolean;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal-panel" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        {children}
+      </div>
+    </div>
   );
 }
 

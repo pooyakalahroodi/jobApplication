@@ -207,6 +207,12 @@ a:hover {
   box-shadow: 0 8px 24px rgb(15 23 42 / 5%);
 }
 
+.workbench-panel {
+  position: sticky;
+  top: 10px;
+  z-index: 5;
+}
+
 .review-panel h2 {
   margin: 0;
   font-size: 16px;
@@ -233,8 +239,12 @@ a:hover {
 
 .layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.layout .panel:nth-child(3) {
+  grid-column: 1 / -1;
 }
 
 .panel {
@@ -398,6 +408,28 @@ a:hover {
   background: #ffffff;
   overflow: hidden;
   box-shadow: 0 10px 30px rgb(15 23 42 / 7%);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: 22px;
+  background: rgb(15 23 42 / 48%);
+}
+
+.modal-panel {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 44px));
+  overflow: auto;
+  border-radius: 10px;
+}
+
+.modal-panel .details-panel {
+  margin-top: 0;
 }
 
 .details-panel header {
@@ -575,6 +607,14 @@ a:hover {
     grid-template-columns: 1fr;
   }
 
+  .workbench-panel {
+    position: static;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
   .details-grid {
     grid-template-columns: repeat(2, minmax(130px, 1fr));
   }
@@ -624,6 +664,10 @@ a:hover {
 
   .details-grid {
     grid-template-columns: 1fr;
+  }
+
+  .modal-backdrop {
+    padding: 10px;
   }
 }
 

@@ -1,3 +1,5 @@
+from difflib import SequenceMatcher
+
 from sqlalchemy.orm import Session
 
 from app.models.application import Application
@@ -14,13 +16,22 @@ from app.schemas.matching import MatchingRunResult
 
 def score_job_email_match(job_ad: JobAd, email: Email) -> int:
     score = 0
-    email_text = f"{email.subject}\n{email.body}".lower()
+    email_text = _normalize(f"{email.subject}\n{email.body}")
 
-    if _matches_text_or_extraction(job_ad.company, email.extracted_company, email_text):
+    company_score = _best_similarity(job_ad.company, [email.extracted_company, email_text])
+    title_score = _best_similarity(job_ad.title, [email.extracted_role_title, email_text])
+
+    if company_score >= 0.9:
         score += 40
-    if _matches_text_or_extraction(job_ad.title, email.extracted_role_title, email_text):
+    elif company_score >= 0.65:
+        score += 28
+
+    if title_score >= 0.9:
         score += 30
-    if job_ad.url and job_ad.url.lower() in email_text:
+    elif title_score >= 0.55:
+        score += 22
+
+    if job_ad.url and _normalize(job_ad.url) in email_text:
         score += 20
     if job_ad.location and _normalize(job_ad.location) in email_text:
         score += 10
@@ -28,17 +39,41 @@ def score_job_email_match(job_ad: JobAd, email: Email) -> int:
     return score
 
 
-def _matches_text_or_extraction(expected: str | None, extracted: str | None, text: str) -> bool:
+def _best_similarity(expected: str | None, candidates: list[str | None]) -> float:
     if not expected:
-        return False
+        return 0.0
     normalized_expected = _normalize(expected)
-    if normalized_expected in text:
-        return True
-    return bool(extracted and normalized_expected == _normalize(extracted))
+    if not normalized_expected:
+        return 0.0
+
+    scores = [_similarity(normalized_expected, _normalize(candidate)) for candidate in candidates]
+    return max(scores, default=0.0)
 
 
-def _normalize(value: str) -> str:
-    return " ".join(value.lower().replace(",", " ").split())
+def _similarity(expected: str, candidate: str) -> float:
+    if not candidate:
+        return 0.0
+    if expected in candidate or candidate in expected:
+        return 1.0
+
+    expected_tokens = set(expected.split())
+    candidate_tokens = set(candidate.split())
+    if not expected_tokens or not candidate_tokens:
+        return 0.0
+
+    token_coverage = len(expected_tokens.intersection(candidate_tokens)) / len(expected_tokens)
+    sequence_score = SequenceMatcher(None, expected, candidate).ratio()
+    return max(token_coverage, sequence_score)
+
+
+def _normalize(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = value.lower()
+    for character in ",.;:()[]{}|/\\-_":
+        normalized = normalized.replace(character, " ")
+    ignored_tokens = {"gmbh", "inc", "llc", "ltd", "ag", "se", "the", "and", "und", "m", "w", "d"}
+    return " ".join(token for token in normalized.split() if token not in ignored_tokens)
 
 
 def application_status_from_email(email_status: EmailStatus) -> ApplicationStatus:
