@@ -1,5 +1,5 @@
 body {
-  width: 280px;
+  width: 310px;
   margin: 0;
   color: #17202a;
   background: #f8fafc;
@@ -23,6 +23,11 @@ p {
   line-height: 1.4;
 }
 
+.button-stack {
+  display: grid;
+  gap: 8px;
+}
+
 button {
   width: 100%;
   min-height: 36px;
@@ -33,6 +38,12 @@ button {
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+}
+
+button.secondary {
+  color: #17202a;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
 }
 
 button:disabled {

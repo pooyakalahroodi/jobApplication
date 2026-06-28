@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Save Job</title>
+    <title>Capture Application Data</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
     <main>
-      <h1>Save Job</h1>
-      <p id="status">Capture this job advertisement into your local dashboard.</p>
-      <button id="saveJob" type="button">Save Job</button>
+      <h1>Capture</h1>
+      <p id="status">Save the current job page or the email you are reading.</p>
+      <div class="button-stack">
+        <button id="saveJob" type="button">Save Job</button>
+        <button id="saveEmail" type="button" class="secondary">Save Email</button>
+      </div>
     </main>
     <script src="popup.js"></script>
   </body>
