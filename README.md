@@ -52,6 +52,13 @@ Open:
 http://127.0.0.1:5173
 ```
 
+## One-Click Windows Start
+
+Double-click [start-job-app.bat](start-job-app.bat) from the project root.
+
+It starts/checks Ollama, pulls the configured local model when missing, applies database
+migrations, starts the backend and frontend in separate windows, then opens the dashboard.
+
 ## Local LLM Extraction
 
 The app can use a local Ollama model to improve captured job ads and imported emails.
