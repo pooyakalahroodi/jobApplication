@@ -121,6 +121,22 @@ export function App() {
     }
   }
 
+  async function handleApplicationNotesSave(applicationId: number, manual_notes: string) {
+    setMessage("Saving application notes...");
+    try {
+      const updatedApplication = await updateApplication(applicationId, {
+        manual_notes: manual_notes.trim() === "" ? null : manual_notes
+      });
+      setSelectedApplicationDetail((current) =>
+        current?.id === applicationId ? { ...current, ...updatedApplication } : current
+      );
+      await refreshData();
+      setMessage("Application notes saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save application notes.");
+    }
+  }
+
   async function handleConfirmMatch() {
     if (!manualJobId || !manualEmailId) {
       setMessage("Select a job and an email first.");
@@ -465,6 +481,7 @@ export function App() {
         <ApplicationDetailsPanel
           detail={selectedApplicationDetail}
           onClose={() => setSelectedApplicationDetail(null)}
+          onSaveNotes={handleApplicationNotesSave}
         />
       </Modal>
       <Modal open={selectedExtractionRun !== null} onClose={() => setSelectedExtractionRunId(null)}>
@@ -838,11 +855,19 @@ function EmailDetailsPanel({ email, onClose }: { email: Email | null; onClose: (
 
 function ApplicationDetailsPanel({
   detail,
-  onClose
+  onClose,
+  onSaveNotes
 }: {
   detail: ApplicationDetail | null;
   onClose: () => void;
+  onSaveNotes: (applicationId: number, manualNotes: string) => Promise<void>;
 }) {
+  const [manualNotes, setManualNotes] = useState("");
+
+  useEffect(() => {
+    setManualNotes(detail?.manual_notes ?? "");
+  }, [detail]);
+
   if (!detail) {
     return null;
   }
@@ -881,6 +906,19 @@ function ApplicationDetailsPanel({
           </p>
         </div>
       ) : null}
+      <div className="detail-block notes-editor">
+        <div className="detail-block-heading">
+          <h3>Personal Notes</h3>
+          <button type="button" className="primary" onClick={() => void onSaveNotes(detail.id, manualNotes)}>
+            Save Notes
+          </button>
+        </div>
+        <textarea
+          value={manualNotes}
+          onChange={(event) => setManualNotes(event.target.value)}
+          placeholder="Add form answers, recruiter details, interview preparation notes..."
+        />
+      </div>
       <div className="detail-block">
         <h3>Timeline</h3>
         {detail.events.length > 0 ? (

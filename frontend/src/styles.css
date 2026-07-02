@@ -68,7 +68,8 @@ select {
   font: inherit;
 }
 
-input {
+input,
+textarea {
   min-height: 38px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -76,6 +77,14 @@ input {
   color: #162033;
   background: #ffffff;
   font: inherit;
+}
+
+textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 10px 11px;
+  line-height: 1.45;
+  resize: vertical;
 }
 
 a {
@@ -498,6 +507,22 @@ a:hover {
   text-transform: uppercase;
 }
 
+.detail-block-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.detail-block-heading h3 {
+  margin-bottom: 0;
+}
+
+.notes-editor textarea {
+  display: block;
+}
+
 .detail-block p {
   color: #334155;
   line-height: 1.45;
@@ -668,6 +693,11 @@ a:hover {
 
   .modal-backdrop {
     padding: 10px;
+  }
+
+  .detail-block-heading {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

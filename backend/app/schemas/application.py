@@ -12,6 +12,7 @@ class ApplicationRead(BaseModel):
     status: ApplicationStatus
     company: str | None
     role_title: str | None
+    manual_notes: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -22,6 +23,7 @@ class ApplicationUpdate(BaseModel):
     status: ApplicationStatus | None = None
     company: str | None = None
     role_title: str | None = None
+    manual_notes: str | None = None
 
 
 class ApplicationEventRead(BaseModel):
