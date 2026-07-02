@@ -33,6 +33,33 @@ def test_update_job_email_and_application_statuses(client) -> None:
     assert updated_email.json()["extracted_company"] == "Acme GmbH"
 
 
+def test_marking_captured_job_applied_creates_application(client) -> None:
+    job = client.post(
+        "/job-ads/capture",
+        json={
+            "title": "Backend Engineer",
+            "company": "Acme",
+            "location": "Berlin",
+            "raw_text": "Backend Engineer at Acme in Berlin.",
+        },
+    ).json()
+
+    updated_job = client.patch(f"/job-ads/{job['id']}", json={"status": "applied"})
+
+    assert updated_job.status_code == 200
+    assert updated_job.json()["status"] == "applied"
+    applications = client.get("/applications").json()
+    assert len(applications) == 1
+    assert applications[0]["job_ad_id"] == job["id"]
+    assert applications[0]["status"] == "applied"
+    assert applications[0]["company"] == "Acme"
+    assert applications[0]["role_title"] == "Backend Engineer"
+
+    detail = client.get(f"/applications/{applications[0]['id']}/detail").json()
+    assert detail["events"][0]["email_id"] is None
+    assert detail["events"][0]["notes"] == "Created when captured job was marked as applied."
+
+
 def test_confirm_manual_match(client) -> None:
     job = client.post(
         "/job-ads/capture",
