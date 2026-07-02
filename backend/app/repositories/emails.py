@@ -36,7 +36,7 @@ def list_unmatched_actionable_emails(db: Session) -> list[Email]:
     return list(
         db.scalars(
             select(Email).where(
-                Email.match_status == MatchStatus.NOT_SET,
+                Email.match_status.in_([MatchStatus.NOT_SET, MatchStatus.NEEDS_REVIEW]),
                 Email.email_status.in_(
                     [EmailStatus.PENDING, EmailStatus.REJECTED, EmailStatus.ACCEPTED]
                 ),
