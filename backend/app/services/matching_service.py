@@ -14,6 +14,10 @@ from app.repositories import job_ads as job_ad_repository
 from app.schemas.matching import MatchingRunResult
 
 
+AUTO_MATCH_THRESHOLD = 70
+REVIEW_MATCH_THRESHOLD = 40
+
+
 def score_job_email_match(job_ad: JobAd, email: Email) -> int:
     score = 0
     email_text = _normalize(f"{email.subject}\n{email.body}")
@@ -94,27 +98,83 @@ def job_status_from_email(email_status: EmailStatus) -> JobAdStatus:
     return JobAdStatus.APPLIED
 
 
+def _best_job_for_email(job_ads: list[JobAd], email: Email) -> tuple[JobAd | None, int]:
+    best_job = None
+    best_score = 0
+    for job_ad in job_ads:
+        score = score_job_email_match(job_ad, email)
+        if score > best_score:
+            best_score = score
+            best_job = job_ad
+    return best_job, best_score
+
+
+def _unique_jobs(job_ads: list[JobAd]) -> list[JobAd]:
+    seen_ids: set[int] = set()
+    unique_jobs = []
+    for job_ad in job_ads:
+        if job_ad.id in seen_ids:
+            continue
+        seen_ids.add(job_ad.id)
+        unique_jobs.append(job_ad)
+    return unique_jobs
+
+
+def _active_application_jobs(applications: list[Application]) -> list[JobAd]:
+    jobs = [
+        application.job_ad
+        for application in applications
+        if application.status != ApplicationStatus.REJECTED and application.job_ad is not None
+    ]
+    return _unique_jobs(jobs)
+
+
+def _available_captured_jobs(job_ads: list[JobAd], application_job_ids: set[int]) -> list[JobAd]:
+    return [
+        job_ad
+        for job_ad in job_ads
+        if job_ad.status == JobAdStatus.NOT_APPLIED and job_ad.id not in application_job_ids
+    ]
+
+
+def _best_candidate_from_priority_groups(
+    email: Email, candidate_groups: list[list[JobAd]]
+) -> tuple[JobAd | None, int]:
+    fallback_job = None
+    fallback_score = 0
+    for candidates in candidate_groups:
+        best_job, best_score = _best_job_for_email(candidates, email)
+        if best_score > fallback_score:
+            fallback_job = best_job
+            fallback_score = best_score
+        if best_score >= REVIEW_MATCH_THRESHOLD:
+            return best_job, best_score
+    return fallback_job, fallback_score
+
+
 def run_matching(db: Session) -> MatchingRunResult:
     emails = email_repository.list_unmatched_actionable_emails(db)
     job_ads = job_ad_repository.list_matchable_job_ads(db)
+    applications = application_repository.list_applications(db)
+    application_job_ids = {
+        application.job_ad_id for application in applications if application.job_ad_id is not None
+    }
+    available_jobs = _available_captured_jobs(job_ads, application_job_ids)
+    application_jobs = _active_application_jobs(applications)
 
     matched_count = 0
     needs_review_count = 0
     unmatched_count = 0
     for email in emails:
-        best_job = None
-        best_score = 0
-        for job_ad in job_ads:
-            score = score_job_email_match(job_ad, email)
-            if score > best_score:
-                best_score = score
-                best_job = job_ad
+        best_job, best_score = _best_candidate_from_priority_groups(
+            email, [available_jobs, application_jobs]
+        )
 
         if best_job is None:
             unmatched_count += 1
             continue
 
-        if best_score >= 70:
+        if best_score >= AUTO_MATCH_THRESHOLD:
             status = application_status_from_email(email.email_status)
             application = application_repository.get_application_by_job_ad_id(db, best_job.id)
             if application is None:
@@ -141,7 +201,7 @@ def run_matching(db: Session) -> MatchingRunResult:
             best_job.status = job_status_from_email(email.email_status)
             email.match_status = MatchStatus.SET
             matched_count += 1
-        elif best_score >= 40:
+        elif best_score >= REVIEW_MATCH_THRESHOLD:
             email.match_status = MatchStatus.NEEDS_REVIEW
             needs_review_count += 1
         else:
