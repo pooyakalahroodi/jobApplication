@@ -37,6 +37,7 @@ export type Application = {
   status: "applied" | "pending" | "rejected" | "accepted" | "unknown";
   company: string | null;
   role_title: string | null;
+  manual_notes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -154,7 +155,7 @@ export function updateEmail(
 
 export function updateApplication(
   id: number,
-  payload: Partial<Pick<Application, "status" | "company" | "role_title">>
+  payload: Partial<Pick<Application, "status" | "company" | "role_title" | "manual_notes">>
 ) {
   return request<Application>(`/applications/${id}`, {
     method: "PATCH",

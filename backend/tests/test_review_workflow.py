@@ -68,11 +68,16 @@ def test_confirm_manual_match(client) -> None:
 
     updated_application = client.patch(
         f"/applications/{application['id']}",
-        json={"status": "accepted", "company": "Academic Work"},
+        json={
+            "status": "accepted",
+            "company": "Academic Work",
+            "manual_notes": "Filled relocation form before interview.",
+        },
     )
     assert updated_application.status_code == 200
     assert updated_application.json()["status"] == "accepted"
     assert updated_application.json()["company"] == "Academic Work"
+    assert updated_application.json()["manual_notes"] == "Filled relocation form before interview."
 
 
 def test_application_detail_includes_job_and_events(client) -> None:
@@ -97,6 +102,7 @@ def test_application_detail_includes_job_and_events(client) -> None:
     assert response.status_code == 200
     detail = response.json()
     assert detail["id"] == application["id"]
+    assert detail["manual_notes"] is None
     assert detail["job_ad"]["id"] == job["id"]
     assert detail["events"][0]["email_id"] == email["id"]
     assert detail["events"][0]["notes"] == "Manually confirmed match."
